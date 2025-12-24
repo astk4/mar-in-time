@@ -1,3 +1,5 @@
+using MarInTime.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 namespace MarInTime
 {
@@ -6,8 +8,10 @@ namespace MarInTime
         public static void Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
-
-            // Add services to the container.
+            builder.Services.AddDbContext<MainDbContext>(options =>
+            {
+                options.UseNpgsql(builder.Configuration["Data:Main"]);
+            });
 
             builder.Services.AddControllers();
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
