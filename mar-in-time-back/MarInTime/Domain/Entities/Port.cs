@@ -13,11 +13,9 @@ namespace MarInTime.Domain.Entities
         [Required]  
         public string? Name { get; set; }
 
-        [Precision(8, 6)]
-        public decimal Latitude { get; set; }
+        public double Latitude { get; set; }
         
-        [Precision(9, 6)]
-        public decimal Longitude { get; set; }
+        public double Longitude { get; set; }
 
         [ForeignKey(nameof(Country))]
         public string? CountryId { get; set; }

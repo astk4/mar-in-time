@@ -1,4 +1,6 @@
+using MarInTime.Application.Repositories;
 using MarInTime.Infrastructure.Persistence;
+using MarInTime.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 
 namespace MarInTime
@@ -12,6 +14,8 @@ namespace MarInTime
             {
                 options.UseNpgsql(builder.Configuration["Data:Main"]);
             });
+
+            builder.Services.AddTransient<IPortRepository, PortRepository>();
 
             builder.Services.AddControllers();
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
