@@ -18,7 +18,20 @@ namespace MarInTime
             builder.Services.AddTransient<IPortRepository, PortRepository>();
 
             builder.Services.AddControllers();
-            // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+
+            string[] allowedHosts = builder.Configuration.GetSection("CORS_Settings:AllowedHosts")!.Get<string[]>()!,
+                     allowedMethods = builder.Configuration.GetSection("CORS_Settings:AllowedMethods")!.Get<string[]>()!;
+
+            builder.Services.AddCors(options =>
+            {
+                options.AddPolicy("MainFrontendPolicy", builder =>
+                {
+                    builder.SetIsOriginAllowed(origin => allowedHosts.Contains(new Uri(origin).Host))
+                           .WithMethods(allowedMethods)
+                           .AllowAnyHeader();
+                });
+            });
+
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
 
@@ -33,8 +46,8 @@ namespace MarInTime
 
             app.UseHttpsRedirection();
 
+            app.UseCors("MainFrontendPolicy");
             app.UseAuthorization();
-
 
             app.MapControllers();
 
