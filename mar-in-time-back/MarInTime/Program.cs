@@ -2,6 +2,8 @@ using MarInTime.Application.Repositories;
 using MarInTime.Infrastructure.Persistence;
 using MarInTime.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
+using NetTopologySuite.IO.Converters;
+using System.Text.Json.Serialization;
 
 namespace MarInTime
 {
@@ -12,12 +14,19 @@ namespace MarInTime
             var builder = WebApplication.CreateBuilder(args);
             builder.Services.AddDbContext<MainDbContext>(options =>
             {
-                options.UseNpgsql(builder.Configuration["Data:Main"]);
+                options.UseNpgsql(builder.Configuration["Data:Main"],
+                                  npgsql => npgsql.UseNetTopologySuite());
             });
 
             builder.Services.AddTransient<IPortRepository, PortRepository>();
+            builder.Services.AddTransient<IEconomicZoneRepository, EconomicZoneRepository>();
 
-            builder.Services.AddControllers();
+            builder.Services.AddControllers()
+                            .AddJsonOptions(options =>
+                            {
+                                options.JsonSerializerOptions.NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals;
+                                options.JsonSerializerOptions.Converters.Insert(0, new GeoJsonConverterFactory());
+                            });
 
             string[] allowedHosts = builder.Configuration.GetSection("CORS_Settings:AllowedHosts")!.Get<string[]>()!,
                      allowedMethods = builder.Configuration.GetSection("CORS_Settings:AllowedMethods")!.Get<string[]>()!;
