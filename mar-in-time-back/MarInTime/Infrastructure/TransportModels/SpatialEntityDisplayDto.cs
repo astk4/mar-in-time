@@ -1,4 +1,8 @@
-﻿namespace MarInTime.Infrastructure.TransportModels
+﻿using MarInTime.Infrastructure.Converters;
+using System.Text.Json.Serialization;
+
+namespace MarInTime.Infrastructure.TransportModels
 {
-    public abstract record SpatialEntityDisplayDto(int GID, string Name, string GeometryAsString);
+    [JsonConverter(typeof(GeoJsonFeatureConverter))]
+    public record SpatialEntityDisplayDto(int GID, string GeometryAsString);
 }

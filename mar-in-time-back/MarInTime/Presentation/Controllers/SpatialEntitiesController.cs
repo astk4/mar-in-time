@@ -1,13 +1,10 @@
-﻿using MarInTime.Application.Mappers;
-using MarInTime.Application.Repositories;
-using MarInTime.Domain;
+﻿using MarInTime.Application.Services;
+using MarInTime.Domain.DTOs;
 using MarInTime.Domain.Entities;
-using MarInTime.Infrastructure.Converters;
-using MarInTime.Infrastructure.TransportModels;
+using MarInTime.Presentation.ViewModels;
 using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace MarInTime.Presentation.Controllers
 {
@@ -15,13 +12,13 @@ namespace MarInTime.Presentation.Controllers
     [Route("spatial")]
     public class SpatialEntitiesController : ControllerBase
     {
-        private readonly IEconomicZoneRepository eezRepo;
+        private readonly IEezService eezService;
 
-        public SpatialEntitiesController(IEconomicZoneRepository eezRepo) => this.eezRepo = eezRepo;
+        public SpatialEntitiesController(IEezService eezService) => this.eezService = eezService;
 
         [HttpGet]
         [Route("eez")]
-        public async Task GetAllEconomicalZonesForMap()
+        public async Task GetAllEconomicalZonesForMap(int zoom, [FromQuery]ViewportBoundsViewModel viewModel)
         {
             Response.ContentType = "application/json";
 
@@ -29,8 +26,13 @@ namespace MarInTime.Presentation.Controllers
 
             bool first = true;
 
-            await foreach (var eez in eezRepo.GetZonesTransport(new Specification<EconomicZoneDisplayDto>(ee => true)))
+            await foreach (var eez in eezService.GetZone(zoom, viewModel.West, viewModel.South, viewModel.East, viewModel.North))
             {
+                if (eez == null)
+                {
+                    continue;
+                }
+
                 if (!first)
                 {
                     await Response.WriteAsync(",");

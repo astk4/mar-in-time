@@ -1,6 +1,8 @@
 using MarInTime.Application.Repositories;
+using MarInTime.Application.Services;
 using MarInTime.Infrastructure.Persistence;
 using MarInTime.Infrastructure.Repositories;
+using MarInTime.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using NetTopologySuite.IO.Converters;
 using System.Text.Json.Serialization;
@@ -19,7 +21,8 @@ namespace MarInTime
             });
 
             builder.Services.AddTransient<IPortRepository, PortRepository>();
-            builder.Services.AddTransient<IEconomicZoneRepository, EconomicZoneRepository>();
+            builder.Services.AddTransient<IGisRepository, EconomicZoneRepository>();
+            builder.Services.AddScoped<IEezService, EezService>();
 
             builder.Services.AddControllers()
                             .AddJsonOptions(options =>
@@ -51,7 +54,7 @@ namespace MarInTime
             {
                 app.UseSwagger();
                 app.UseSwaggerUI();
-            }
+            } 
 
             app.UseHttpsRedirection();
 
@@ -59,6 +62,19 @@ namespace MarInTime
             app.UseAuthorization();
 
             app.MapControllers();
+
+            // startup logic
+            using (IServiceScope scope = app.Services.CreateScope())
+            {
+                var gisServices = scope.ServiceProvider.GetServices<IEezService>();
+                if (gisServices != null)
+                {
+                    foreach (IEezService gzs in gisServices)
+                    {
+                        gzs.InitZoomTableNames();
+                    }
+                }
+            }
 
             app.Run();
         }

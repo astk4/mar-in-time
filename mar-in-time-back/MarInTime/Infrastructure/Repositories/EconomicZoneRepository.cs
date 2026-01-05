@@ -1,21 +1,29 @@
 ﻿using MarInTime.Application.Repositories;
 using MarInTime.Domain;
+using MarInTime.Domain.DTOs;
 using MarInTime.Domain.Entities;
 using MarInTime.Infrastructure.Persistence;
 using MarInTime.Infrastructure.TransportModels;
+using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
 namespace MarInTime.Infrastructure.Repositories
 {
-    public class EconomicZoneRepository : Repository<MainDbContext>, IEconomicZoneRepository
+    public class EconomicZoneRepository : Repository<MainDbContext>, IGisRepository, IEconomicZoneRepository
     {
-        private const string EezViewSelectCommand = "SELECT gid, geoname, x_1, y_1, geom_geojson FROM eez_v12_geojson";
+        private const string EezChunkCommand = @"select gid, ST_AsGeoJSON(geom)
+                                                 FROM {0}
+                                                 WHERE ST_Intersects(geom, ST_MakeEnvelope(@xMin, @yMin, @xMax, @yMax, 4326))";
 
         readonly IConfiguration configuration;
         public EconomicZoneRepository(MainDbContext context,IConfiguration configuration) 
             : base(context) 
         { 
             this.configuration = configuration;
+        }
+        public IEnumerable<string> GetRelationNames(string funcName)
+        {
+            return context.Database.SqlQueryRaw<string>($"select * from {funcName}();").ToList();
         }
 
         public async Task<IReadOnlyList<ExclusiveEconomicZone>> GetZones(ISpecification<ExclusiveEconomicZone> specification)
@@ -25,29 +33,27 @@ namespace MarInTime.Infrastructure.Repositories
                                                        .ToListAsync();
         }
 
-        public async IAsyncEnumerable<EconomicZoneDisplayDto> GetZonesTransport(ISpecification<EconomicZoneDisplayDto> specification)
+        public async IAsyncEnumerable<SpatialEntityDisplayDto> GetChunksInBounds(string tableName, double xMin, double yMin, double xMax, double yMax)
         {
             string connStr = configuration["Data:Main"]!;
             using(NpgsqlConnection connection = new NpgsqlConnection(connStr))
             {
                 await connection.OpenAsync();
 
-                using(NpgsqlCommand selectCommand = new NpgsqlCommand(EezViewSelectCommand, connection))
+                string cmdText = string.Format(EezChunkCommand, tableName);
+
+                using (NpgsqlCommand selectCommand = new NpgsqlCommand(cmdText, connection))
                 {
+                    selectCommand.Parameters.AddWithValue("@xMin", xMin);
+                    selectCommand.Parameters.AddWithValue("@xMax", xMax);
+                    selectCommand.Parameters.AddWithValue("@yMin", yMin);
+                    selectCommand.Parameters.AddWithValue("@yMax", yMax);
+
                     using (NpgsqlDataReader reader = await selectCommand.ExecuteReaderAsync())
                     {
                         while (await reader.ReadAsync())
                         {
-                            var dto = new EconomicZoneDisplayDto(reader.GetInt32(0),
-                                                                 reader.GetString(1),
-                                                                 reader.GetString(4),
-                                                                 reader.GetDouble(2),
-                                                                 reader.GetDouble(3));
-                            if (!specification.IsSatisfiedBy(dto))
-                            {
-                                continue;
-                            }
-                            yield return dto;
+                            yield return new SpatialEntityDisplayDto(reader.GetInt32(0), reader.GetString(1));
                         }
                     }
                 }
