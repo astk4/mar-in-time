@@ -6,6 +6,7 @@ using MarInTime.Infrastructure.Persistence;
 using MarInTime.Infrastructure.TransportModels;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using System.Diagnostics;
 
 namespace MarInTime.Infrastructure.Repositories
 {
@@ -51,13 +52,23 @@ namespace MarInTime.Infrastructure.Repositories
 
                     using (NpgsqlDataReader reader = await selectCommand.ExecuteReaderAsync())
                     {
-                        while (await reader.ReadAsync())
+                        try
                         {
-                            yield return new SpatialEntityDisplayDto(reader.GetInt32(0), reader.GetString(1));
+                            while (await reader.ReadAsync())
+                            {
+                                yield return new SpatialEntityDisplayDto(reader.GetInt32(0), reader.GetString(1));
+                            }
+                        }
+                        finally
+                        {
+                            await connection.CloseAsync();
+
+                            await reader.DisposeAsync();
+                            await selectCommand.DisposeAsync();
+                            await connection.DisposeAsync();
                         }
                     }
                 }
-                await connection.CloseAsync();
             }
         }
     }

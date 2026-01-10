@@ -1,5 +1,6 @@
 
 import { portPopupTemplate } from "./popup_exports.js";
+import  * as spatialOptimization from "./spatial_optimization.js";
 
 var basicMap;
 var eezLayer;
@@ -17,24 +18,34 @@ function initMainMap() {
         center: [20.0, 5.0], 
         zoom: 4,
         maxBounds: myMaxBounds, 
-        maxBoundsViscosity: 1.0
+        inertia: false,
+        maxBoundsViscosity: 1.0,
+        preferCanvas: true
       });
     basicMap.setMinZoom(2);
 
     eezLayer = L.layerGroup().addTo(basicMap);
     
-    basicMap.on('drag', function() {
-      basicMap.panInsideBounds(myMaxBounds, { animate: false });
-    });
-    basicMap.on('zoomend', async function() { 
-      await updateEezLayer(basicMap.getBounds(), basicMap.getZoom());
-    });
-    basicMap.on('move', async function() { 
-      await updateEezLayer(basicMap.getBounds(), basicMap.getZoom());
-    });
-    basicMap.on('resize', async function() { 
-      await updateEezLayer(basicMap.getBounds(), basicMap.getZoom());
-    });
+    const myOnMove = async function() 
+    {
+      const bbox = boundsToObject(basicMap.getBounds());
+      if (!spatialOptimization.validateMove(bbox, basicMap.getCenter())) { return; }
+      
+      //console.log("eez update here");
+      await updateEezLayer(bbox, basicMap.getZoom());
+    };
+
+    const myOnZoom = async function() {
+
+      const bbox = boundsToObject(basicMap.getBounds());
+      //console.log("eez update here");
+      await updateEezLayer(bbox, basicMap.getZoom());
+    };
+
+    basicMap.on('load', myOnMove);
+
+    basicMap.on('moveend', myOnMove);
+    basicMap.on('zoomend', myOnZoom);
 
     L.tileLayer( 'http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
@@ -54,25 +65,32 @@ async function addMarkers()
   }
 }
 
-async function updateEezLayer(bounds, zoomLevel) {
-    const bbox = {
+function boundsToObject(bounds) {
+    return {
         West: bounds.getWest(),
         South: bounds.getSouth(),
         East: bounds.getEast(), 
         North: bounds.getNorth()
     };
+}
+
+async function updateEezLayer(bbox, zoomLevel) {
 
     let params = new URLSearchParams(bbox);
     params.append("zoom", zoomLevel);
 
-    let features = await fetchGet(`https://localhost:7120/spatial/eez?${params.toString()}`);
+    let features = await spatialOptimization.fetchGetAbortable(`https://localhost:7120/spatial/eez?${params.toString()}`);
 
-    if (!features) {
+    if (!features || features == null) {
       return;
     }
-    
+
+    eezLayer.remove();  
     eezLayer.clearLayers();
     L.geoJSON(features).addTo(eezLayer);
+    eezLayer.addTo(basicMap);
+
+    features = null;
 }
 
 window.initMainMap = initMainMap;
