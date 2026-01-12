@@ -2,6 +2,7 @@
 using MarInTime.Domain.DTOs;
 using MarInTime.Domain.Entities;
 using MarInTime.Presentation.ViewModels;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics;
 using System.Text.Json;
@@ -20,11 +21,8 @@ namespace MarInTime.Presentation.Controllers
         [Route("eez")]
         public async Task GetAllEconomicalZonesForMap(int zoom, [FromQuery]ViewportBoundsViewModel viewModel)
         {
-            Response.ContentType = "application/json";
-
-            await Response.WriteAsync("{\"type\":\"FeatureCollection\",\"features\":[");
-
-            bool first = true;
+            this.HttpContext.Features.Get<IHttpResponseBodyFeature>()?.DisableBuffering();
+            Response.ContentType = "application/x-ndjson";
 
             await foreach (var eez in eezService.GetZone(zoom, viewModel.West, viewModel.South, viewModel.East, viewModel.North))
             {
@@ -33,18 +31,12 @@ namespace MarInTime.Presentation.Controllers
                     continue;
                 }
 
-                if (!first)
-                {
-                    await Response.WriteAsync(",");
-                }
-
-                first = false;
-
                 await Response.WriteAsync(JsonSerializer.Serialize(eez));
+                await Response.WriteAsync("\n");
+                await Response.Body.FlushAsync();
+
                 Debug.WriteLine($"gid {eez.GID}");
             }
-
-            await Response.WriteAsync("]}");
         }
     }
 }

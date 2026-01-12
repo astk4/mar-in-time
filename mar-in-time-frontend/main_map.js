@@ -38,7 +38,6 @@ function initMainMap() {
     const myOnZoom = async function() {
 
       const bbox = boundsToObject(basicMap.getBounds());
-      //console.log("eez update here");
       await updateEezLayer(bbox, basicMap.getZoom());
     };
 
@@ -74,23 +73,44 @@ function boundsToObject(bounds) {
     };
 }
 
+function addSingleZone(feature) 
+{
+  let jsonFeature = JSON.parse(feature);
+  try {
+    L.geoJSON(jsonFeature).addTo(eezLayer);
+    eezLayer.addTo(basicMap);
+  }
+  catch (err) {
+    console.log("Error adding zone:", err);
+  }
+}
+
 async function updateEezLayer(bbox, zoomLevel) {
 
     let params = new URLSearchParams(bbox);
     params.append("zoom", zoomLevel);
 
-    let features = await spatialOptimization.fetchGetAbortable(`https://localhost:7120/spatial/eez?${params.toString()}`);
+    let featuresResponse = await spatialOptimization.fetchGetRequestAbortable(`https://localhost:7120/spatial/eez?${params.toString()}`);
 
-    if (!features || features == null) {
+    if (!featuresResponse || featuresResponse == null || !featuresResponse.ok) {
       return;
     }
 
-    eezLayer.remove();  
-    eezLayer.clearLayers();
-    L.geoJSON(features).addTo(eezLayer);
-    eezLayer.addTo(basicMap);
+    try {
+      eezLayer.remove();  
+      eezLayer.clearLayers();
+      await spatialOptimization.consumeStreamedResponse(featuresResponse, addSingleZone);
+    }
+    catch (err) {
+      if (err.name === 'AbortError') {
+        console.log('EEZ stream closed due to fetch abort');
+      }
+      else {
+        console.error(err);
+      }
+    }
 
-    features = null;
+    featuresResponse = null;
 }
 
 window.initMainMap = initMainMap;
