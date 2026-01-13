@@ -31,17 +31,15 @@ function initMainMap() {
       const bbox = boundsToObject(basicMap.getBounds());
       if (!spatialOptimization.validateMove(bbox, basicMap.getCenter())) { return; }
       
-      //console.log("eez update here");
       await updateEezLayer(bbox, basicMap.getZoom());
     };
 
     const myOnZoom = async function() {
 
+      console.log("zoom level:", basicMap.getZoom());
       const bbox = boundsToObject(basicMap.getBounds());
       await updateEezLayer(bbox, basicMap.getZoom());
     };
-
-    basicMap.on('load', myOnMove);
 
     basicMap.on('moveend', myOnMove);
     basicMap.on('zoomend', myOnZoom);
@@ -50,6 +48,8 @@ function initMainMap() {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
         subdomains: ['a','b','c'],
     }).addTo( basicMap );
+
+    myOnMove();
 }
 
 async function addMarkers()
