@@ -5,26 +5,41 @@ using MarInTime.Domain.Entities;
 using MarInTime.Infrastructure.Persistence;
 using MarInTime.Infrastructure.TransportModels;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Npgsql;
+using System.Collections.Frozen;
 using System.Diagnostics;
 
 namespace MarInTime.Infrastructure.Repositories
 {
     public class EconomicZoneRepository : Repository<MainDbContext>, IGisRepository, IEconomicZoneRepository
     {
+        private const string ZoomTiersCacheKey = "zooms";
         private const string EezChunkCommand = @"select gid, ST_AsGeoJSON(geom)
                                                  FROM {0}
                                                  WHERE ST_Intersects(geom, ST_MakeEnvelope(@xMin, @yMin, @xMax, @yMax, 4326))";
 
-        readonly IConfiguration configuration;
-        public EconomicZoneRepository(MainDbContext context,IConfiguration configuration) 
+        private readonly IConfiguration configuration;
+        private readonly IMemoryCache memoryCache;
+
+        public EconomicZoneRepository(MainDbContext context,IConfiguration configuration, IMemoryCache memoryCache) 
             : base(context) 
-        { 
+        {
             this.configuration = configuration;
+            this.memoryCache = memoryCache;
         }
         public IEnumerable<string> GetRelationNames(string funcName)
         {
-            return context.Database.SqlQueryRaw<string>($"select * from {funcName}();").ToList();
+            FrozenSet<string>? namesSet;
+            if (!memoryCache.TryGetValue(ZoomTiersCacheKey, out namesSet))
+            {
+                namesSet = context.Database.SqlQueryRaw<string>($"select * from {funcName}();").ToFrozenSet();
+                MemoryCacheEntryOptions options = new MemoryCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromHours(24));
+
+                memoryCache.Set(ZoomTiersCacheKey, namesSet, options);
+            }
+
+            return namesSet!;
         }
 
         public async Task<IReadOnlyList<ExclusiveEconomicZone>> GetZones(ISpecification<ExclusiveEconomicZone> specification)

@@ -24,6 +24,8 @@ namespace MarInTime
             builder.Services.AddTransient<IGisRepository, EconomicZoneRepository>();
             builder.Services.AddScoped<IEezService, EezService>();
 
+            builder.Services.AddMemoryCache();
+
             builder.Services.AddControllers()
                             .AddJsonOptions(options =>
                             {
@@ -62,19 +64,6 @@ namespace MarInTime
             app.UseAuthorization();
 
             app.MapControllers();
-
-            // startup logic
-            using (IServiceScope scope = app.Services.CreateScope())
-            {
-                var gisServices = scope.ServiceProvider.GetServices<IEezService>();
-                if (gisServices != null)
-                {
-                    foreach (IEezService gzs in gisServices)
-                    {
-                        gzs.InitZoomTableNames();
-                    }
-                }
-            }
 
             app.Run();
         }

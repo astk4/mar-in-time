@@ -6,6 +6,7 @@ var basicMap;
 var eezLayer;
 let minLat = -85.05112878, maxLat = 85.05112878,
     minLong = -180, maxLong = 180;
+var prevZoomLevel = 4;
 
 function initMainMap() {
 
@@ -16,7 +17,7 @@ function initMainMap() {
     basicMap = L.map('mapid', 
       { 
         center: [20.0, 5.0], 
-        zoom: 4,
+        zoom: prevZoomLevel, // set to 4
         maxBounds: myMaxBounds, 
         inertia: false,
         maxBoundsViscosity: 1.0,
@@ -34,11 +35,15 @@ function initMainMap() {
       await updateEezLayer(bbox, basicMap.getZoom());
     };
 
-    const myOnZoom = async function() {
+    const myOnZoom = async function() 
+    {
+      let zoomNow = basicMap.getZoom();
 
-      console.log("zoom level:", basicMap.getZoom());
+      console.log("zoom level:", zoomNow);
       const bbox = boundsToObject(basicMap.getBounds());
-      await updateEezLayer(bbox, basicMap.getZoom());
+      await updateEezLayer(bbox, zoomNow, prevZoomLevel);
+
+      prevZoomLevel = zoomNow;
     };
 
     basicMap.on('moveend', myOnMove);
@@ -85,10 +90,13 @@ function addSingleZone(feature)
   }
 }
 
-async function updateEezLayer(bbox, zoomLevel) {
+async function updateEezLayer(bbox, zoomLevel, prevZoomLevel=undefined) {
 
     let params = new URLSearchParams(bbox);
     params.append("zoom", zoomLevel);
+    if (prevZoomLevel) {
+      params.append("prevZoom", prevZoomLevel);
+    }
 
     let featuresResponse = await spatialOptimization.fetchGetRequestAbortable(`https://localhost:7120/spatial/eez?${params.toString()}`);
 

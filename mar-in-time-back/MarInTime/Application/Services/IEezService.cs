@@ -4,7 +4,7 @@ namespace MarInTime.Application.Services
 {
     public interface IEezService
     {
-        void InitZoomTableNames();
+        bool ZoomTierEquals(int zoom1, int zoom2);
         IAsyncEnumerable<SpatialEntityDisplayDto> GetZone(int zoom, double minLng, double minLat, double maxLng, double maxLat);
     }
 }

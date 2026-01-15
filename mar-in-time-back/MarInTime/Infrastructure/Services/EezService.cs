@@ -6,40 +6,48 @@ namespace MarInTime.Infrastructure.Services
 {
     public class EezService : IEezService
     {
+        private const string GetZoomsFuncName = "get_eez_zoom_names";
         private readonly IGisRepository gisRepository;
-
-        private static IEnumerable<string>? zoomLevelNames;
 
         public EezService(IGisRepository gisRepository)
         {
             this.gisRepository = gisRepository;
         }
 
-        private static bool ZoomLevelMatches(string levelName, int zoom)
+        private static (int, int) ZoomNameToRange(string levelName)
         {
             string[] split = levelName.Split('_');
             int minLevel = int.Parse(split[^2]);
-            if(zoom < minLevel)
-            {
-                return false;
-            }
             int maxLevel = int.Parse(split[^1]);
-            return zoom <= maxLevel;
+            return (minLevel, maxLevel);
         }
 
         public IAsyncEnumerable<SpatialEntityDisplayDto> GetZone(int zoom, double minLng, double minLat, double maxLng, double maxLat)
         {
-            string zoomRelName = zoomLevelNames!.First(n => ZoomLevelMatches(n, zoom));
+            IEnumerable<string> allRelNames = gisRepository.GetRelationNames(GetZoomsFuncName);
+            string zoomRelName = allRelNames.First(n =>
+            {
+                (int min, int max) tierRange = ZoomNameToRange(n);
+                return tierRange.min <= zoom && tierRange.max >= zoom;
+            });
             return this.gisRepository.GetChunksInBounds(zoomRelName, minLng, minLat, maxLng, maxLat);
         }
 
-        public void InitZoomTableNames()
+        public bool ZoomTierEquals(int zoom1, int zoom2)
         {
-            if (zoomLevelNames != null)
+            if (zoom1 == zoom2)
             {
-                return;
+                return true;
             }
-            zoomLevelNames = this.gisRepository.GetRelationNames("get_eez_zoom_names");
+
+            IEnumerable<string> allRelNames = gisRepository.GetRelationNames(GetZoomsFuncName);
+            return allRelNames.Any(n =>
+            {
+                (int min, int max) tierRange = ZoomNameToRange(n);
+
+                return tierRange.min <= zoom1 && tierRange.max >= zoom1 
+                    && tierRange.min <= zoom2 && tierRange.max >= zoom2;
+            });
         }
     }
 }

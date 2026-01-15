@@ -19,8 +19,14 @@ namespace MarInTime.Presentation.Controllers
 
         [HttpGet]
         [Route("eez")]
-        public async Task GetAllEconomicalZonesForMap(int zoom, [FromQuery]ViewportBoundsViewModel viewModel)
+        public async Task GetAllEconomicalZonesForMap(int zoom, int? prevZoom, [FromQuery]ViewportBoundsViewModel viewModel)
         {
+            if (prevZoom.HasValue && zoom > prevZoom && eezService.ZoomTierEquals(zoom, prevZoom.Value))
+            {
+                Response.StatusCode = StatusCodes.Status204NoContent;
+                return;
+            }
+
             this.HttpContext.Features.Get<IHttpResponseBodyFeature>()?.DisableBuffering();
             Response.ContentType = "application/x-ndjson";
 
