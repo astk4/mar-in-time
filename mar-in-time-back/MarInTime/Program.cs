@@ -1,4 +1,4 @@
-using MarInTime.Application.Repositories;
+﻿using MarInTime.Application.Repositories;
 using MarInTime.Application.Services;
 using MarInTime.Infrastructure.Persistence;
 using MarInTime.Infrastructure.Repositories;
@@ -6,6 +6,7 @@ using MarInTime.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using NetTopologySuite.IO.Converters;
 using System.Text.Json.Serialization;
+using StackExchange.Redis;
 
 namespace MarInTime
 {
@@ -24,7 +25,20 @@ namespace MarInTime
             builder.Services.AddTransient<IGisRepository, EconomicZoneRepository>();
             builder.Services.AddScoped<IEezService, EezService>();
 
+            string redisHost = builder.Configuration["Redis:Host"]!,
+                   redisPort = builder.Configuration["Redis:Port"]!;
+            ConnectionMultiplexer redis = ConnectionMultiplexer.Connect($"{redisHost}:{redisPort}");
+            builder.Services.AddSingleton<IConnectionMultiplexer>(redis);
+
             builder.Services.AddMemoryCache();
+            builder.Services.AddDistributedMemoryCache();
+            builder.Services.AddSession(options =>
+            {
+                options.Cookie.IsEssential = true;
+                options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+                options.Cookie.SameSite = SameSiteMode.None;
+                options.IdleTimeout = TimeSpan.FromMinutes(30);
+            });
 
             builder.Services.AddControllers()
                             .AddJsonOptions(options =>
@@ -36,13 +50,20 @@ namespace MarInTime
             string[] allowedHosts = builder.Configuration.GetSection("CORS_Settings:AllowedHosts")!.Get<string[]>()!,
                      allowedMethods = builder.Configuration.GetSection("CORS_Settings:AllowedMethods")!.Get<string[]>()!;
 
+            int[] allowedPorts = builder.Configuration.GetSection("CORS_Settings:AllowedPorts")!.Get<int[]>()!;
+
             builder.Services.AddCors(options =>
             {
                 options.AddPolicy("MainFrontendPolicy", builder =>
                 {
-                    builder.SetIsOriginAllowed(origin => allowedHosts.Contains(new Uri(origin).Host))
+                    builder.SetIsOriginAllowed(origin =>
+                            {
+                                Uri originUri = new Uri(origin);
+                                return allowedHosts.Contains(originUri.Host) && allowedPorts.Contains(originUri.Port);
+                            })
                            .WithMethods(allowedMethods)
-                           .AllowAnyHeader();
+                           .AllowAnyHeader()
+                           .AllowCredentials();
                 });
             });
 
@@ -61,6 +82,9 @@ namespace MarInTime
             app.UseHttpsRedirection();
 
             app.UseCors("MainFrontendPolicy");
+
+            app.UseRouting();
+            app.UseSession();
             app.UseAuthorization();
 
             app.MapControllers();

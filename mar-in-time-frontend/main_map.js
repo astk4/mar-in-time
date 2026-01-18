@@ -53,6 +53,7 @@ function initMainMap() {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
         subdomains: ['a','b','c'],
     }).addTo( basicMap );
+    eezLayer = L.geoJSON(null).addTo(basicMap);
 
     myOnMove();
 }
@@ -78,15 +79,39 @@ function boundsToObject(bounds) {
     };
 }
 
-function addSingleZone(feature) 
+function handleZoneIncrement(feature)
 {
-  let jsonFeature = JSON.parse(feature);
+  let jsonFeature;
   try {
-    L.geoJSON(jsonFeature).addTo(eezLayer);
-    eezLayer.addTo(basicMap);
+    jsonFeature = JSON.parse(feature);
   }
   catch (err) {
-    console.log("Error adding zone:", err);
+   console.log(feature);
+   console.error(err);
+   return;
+  }
+
+  if (!Object.hasOwn(jsonFeature, "delete"))
+  {
+    try {
+      eezLayer.addData(jsonFeature);
+    }
+    catch (err) {
+      console.log("Error adding zone:", err);
+    }
+  }
+  else if (jsonFeature.delete) {
+    let toRemove = [];
+
+    eezLayer.eachLayer(function (layer) {
+        if (layer.feature && layer.feature.properties && layer.feature.properties.GID == jsonFeature.gid) {
+            toRemove.push(layer);
+        }
+    });
+
+    toRemove.forEach(layer => {
+        eezLayer.removeLayer(layer);
+    });
   }
 }
 
@@ -105,9 +130,10 @@ async function updateEezLayer(bbox, zoomLevel, prevZoomLevel=undefined) {
     }
 
     try {
-      eezLayer.remove();  
-      eezLayer.clearLayers();
-      await spatialOptimization.consumeStreamedResponse(featuresResponse, addSingleZone);
+      if (prevZoomLevel && zoomLevel > prevZoomLevel) {
+        eezLayer.clearLayers();
+      }
+      await spatialOptimization.consumeStreamedResponse(featuresResponse, handleZoneIncrement);
     }
     catch (err) {
       if (err.name === 'AbortError') {

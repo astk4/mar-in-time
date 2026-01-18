@@ -26,7 +26,7 @@ export async function consumeStreamedResponse(response, funcPerObject) {
         {
             for (const line of linesInChunk) 
             {
-                if (line[line.length - 1] === '}') 
+                if (line[line.length - 1] == '}')
                 {
                     funcPerObject(line);
                 }
@@ -46,7 +46,8 @@ export async function fetchGetRequestAbortable(url) {
 
     try {
         const response = await fetch(url, {
-            signal: crtAbortController.signal
+            signal: crtAbortController.signal,
+            "credentials": "include"
         });
         if (!response.ok) {
             throw new Error(`Response status: ${response.status}`);
