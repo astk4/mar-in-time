@@ -7,6 +7,7 @@ var eezLayer;
 let minLat = -85.05112878, maxLat = 85.05112878,
     minLong = -180, maxLong = 180;
 var prevZoomLevel = 4;
+var layersToRemove = [];
 
 function initMainMap() {
 
@@ -53,7 +54,12 @@ function initMainMap() {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
         subdomains: ['a','b','c'],
     }).addTo( basicMap );
-    eezLayer = L.geoJSON(null).addTo(basicMap);
+    
+    eezLayer = L.geoJSON(null, {
+        style: {
+            weight: spatialOptimization.selectOutlineThickness(prevZoomLevel)
+        }
+    }).addTo(basicMap);
 
     myOnMove();
 }
@@ -101,16 +107,10 @@ function handleZoneIncrement(feature)
     }
   }
   else if (jsonFeature.delete) {
-    let toRemove = [];
-
     eezLayer.eachLayer(function (layer) {
-        if (layer.feature && layer.feature.properties && layer.feature.properties.GID == jsonFeature.gid) {
-            toRemove.push(layer);
+        if (layer.feature && layer.feature.properties && layer.feature.properties.ChunkId == jsonFeature.chunkId) {
+            layersToRemove.push(layer);
         }
-    });
-
-    toRemove.forEach(layer => {
-        eezLayer.removeLayer(layer);
     });
   }
 }
@@ -124,13 +124,16 @@ async function updateEezLayer(bbox, zoomLevel, prevZoomLevel=undefined) {
     }
 
     let featuresResponse = await spatialOptimization.fetchGetRequestAbortable(`https://localhost:7120/spatial/eez?${params.toString()}`);
+    eezLayer.setStyle({
+      weight: spatialOptimization.selectOutlineThickness(zoomLevel)
+    });
 
     if (!featuresResponse || featuresResponse == null || !featuresResponse.ok) {
       return;
     }
 
     try {
-      if (prevZoomLevel && zoomLevel > prevZoomLevel) {
+      if (featuresResponse.headers.has("Marintime-Zoom-Tier-Change")) {
         eezLayer.clearLayers();
       }
       await spatialOptimization.consumeStreamedResponse(featuresResponse, handleZoneIncrement);
@@ -143,8 +146,13 @@ async function updateEezLayer(bbox, zoomLevel, prevZoomLevel=undefined) {
         console.error(err);
       }
     }
-
-    featuresResponse = null;
+    finally {
+      featuresResponse = null;
+      layersToRemove.forEach(layer => {
+        eezLayer.removeLayer(layer);
+      });
+      layersToRemove = [];
+    }
 }
 
 window.initMainMap = initMainMap;

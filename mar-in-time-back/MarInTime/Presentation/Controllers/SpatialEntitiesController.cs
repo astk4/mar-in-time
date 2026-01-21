@@ -22,32 +22,32 @@ namespace MarInTime.Presentation.Controllers
             this.redisDb = multiplexer.GetDatabase();
         }
 
-        private async IAsyncEnumerable<object> StreamMapChanges(int zoom, ViewportBoundsViewModel viewModel, RedisValue[] oldGids, ISet<int> oldGidsMutable, string sessionKey)
+        private async IAsyncEnumerable<object> StreamMapChanges(int zoom, ViewportBoundsViewModel viewModel, RedisValue[] oldChunkIds, HashSet<int> oldChunkIdsMutable, string sessionKey)
         {
             await foreach (var eez in eezService.GetZone(zoom, viewModel.West, viewModel.South, viewModel.East, viewModel.North))
             {
-                if (eez == null)
+                if (eez == null || eez.ChunkId == null)
                 {
                     continue;
                 }
 
-                if (oldGids.Contains(eez.GID))
+                if (oldChunkIds.Contains(eez.ChunkId.Value))
                 {
-                    oldGidsMutable.Remove(eez.GID);
+                    oldChunkIdsMutable.Remove(eez.ChunkId.Value);
                 }
                 else
                 {
-                    await redisDb.SetAddAsync(sessionKey, eez.GID);
-                    Debug.WriteLine($"gid {eez.GID} is new");
+                    await redisDb.SetAddAsync(sessionKey, eez.ChunkId.Value);
+                    Debug.WriteLine($"chunk {eez.ChunkId} is new");
                     yield return eez;
                 }
             }
 
-            await foreach (var gidLeft in oldGidsMutable.ToAsyncEnumerable())
+            await foreach (var chunkLeft in oldChunkIdsMutable.ToAsyncEnumerable())
             {
-                await redisDb.SetRemoveAsync(sessionKey, gidLeft);
-                Debug.WriteLine($"gid {gidLeft} is deleted");
-                yield return new { gid = Convert.ToInt32(gidLeft), delete = true };
+                await redisDb.SetRemoveAsync(sessionKey, chunkLeft);
+                Debug.WriteLine($"chunk {chunkLeft} is deleted");
+                yield return new { chunkId = Convert.ToInt32(chunkLeft), delete = true };
             }
         }
 
@@ -55,7 +55,8 @@ namespace MarInTime.Presentation.Controllers
         [Route("eez")]
         public async Task GetAllEconomicalZonesForMap(int zoom, int? prevZoom, [FromQuery]ViewportBoundsViewModel viewModel)
         {
-            if (prevZoom.HasValue && zoom > prevZoom && eezService.ZoomTierEquals(zoom, prevZoom.Value))
+            bool tierEquals = prevZoom.HasValue && eezService.ZoomTierEquals(zoom, prevZoom.Value);
+            if (tierEquals && zoom > prevZoom)
             {
                 Response.StatusCode = StatusCodes.Status204NoContent;
                 return;
@@ -64,17 +65,20 @@ namespace MarInTime.Presentation.Controllers
             string sessionEezKey = $"{this.HttpContext.Session.Id}:eez";
             Debug.WriteLine(sessionEezKey);
 
-            RedisValue[] oldGids;
-            if (prevZoom.HasValue && zoom > prevZoom)
+            RedisValue[] oldChunkIds;
+            if (prevZoom.HasValue && !tierEquals)
             {
                 await redisDb.KeyDeleteAsync(sessionEezKey);
-                oldGids = new RedisValue[] { };
+                oldChunkIds = Array.Empty<RedisValue>();
+
+                Response.Headers.Append("Marintime-Zoom-Tier-Change", "1");
+                Response.Headers.Append("Access-Control-Expose-Headers", "Marintime-Zoom-Tier-Change");
             }
             else {
-                oldGids = await redisDb.SetMembersAsync(sessionEezKey);
+                oldChunkIds = await redisDb.SetMembersAsync(sessionEezKey);
             }
-            HashSet<int> oldGidsMutable = oldGids.Select(x => Convert.ToInt32(x)).ToHashSet();
-            if (oldGids.Length == 0)
+            HashSet<int> olcChunkIdsMutable = oldChunkIds.Select(x => Convert.ToInt32(x)).ToHashSet();
+            if (oldChunkIds.Length == 0)
             {
                 this.HttpContext.Session.Set("save_id", new byte[] { 1 });
             }
@@ -82,7 +86,7 @@ namespace MarInTime.Presentation.Controllers
             this.HttpContext.Features.Get<IHttpResponseBodyFeature>()?.DisableBuffering();
             Response.ContentType = "application/x-ndjson";
 
-            await foreach (object obj in StreamMapChanges(zoom, viewModel, oldGids, oldGidsMutable, sessionEezKey))
+            await foreach (object obj in StreamMapChanges(zoom, viewModel, oldChunkIds, olcChunkIdsMutable, sessionEezKey))
             {
                 await Response.WriteAsync(JsonSerializer.Serialize(obj));
                 await Response.WriteAsync("\n");

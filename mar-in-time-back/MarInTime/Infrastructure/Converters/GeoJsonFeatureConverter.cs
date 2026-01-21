@@ -20,6 +20,10 @@ namespace MarInTime.Infrastructure.Converters
             writer.WriteStartObject();
 
             writer.WriteNumber(ConvertNameIfPolicyExists(nameof(value.GID), options.PropertyNamingPolicy), value.GID);
+            if (value.ChunkId.HasValue) 
+            {
+                writer.WriteNumber(ConvertNameIfPolicyExists(nameof(value.ChunkId), options.PropertyNamingPolicy), value.ChunkId.Value);
+            }
 
             writer.WriteEndObject();
 

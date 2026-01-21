@@ -100,3 +100,16 @@ export function validateMove(bbox, centerNow)
     console.log('Moved too little, no need to fetch new data');
     return false;
 }
+
+export function selectOutlineThickness(zoomLevel) {
+    if (zoomLevel <= 3) {
+        return 2;
+    }
+    if (zoomLevel <= 6) {
+        return 3;
+    }
+    if (zoomLevel <= 10) {
+        return 4;
+    }
+    return 5;
+}

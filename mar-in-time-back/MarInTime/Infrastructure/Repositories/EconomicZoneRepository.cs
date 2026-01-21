@@ -15,7 +15,7 @@ namespace MarInTime.Infrastructure.Repositories
     public class EconomicZoneRepository : Repository<MainDbContext>, IGisRepository, IEconomicZoneRepository
     {
         private const string ZoomTiersCacheKey = "zooms";
-        private const string EezChunkCommand = @"select gid, ST_AsGeoJSON(geom)
+        private const string EezChunkCommand = @"select gid, chunk_id, ST_AsGeoJSON(geom)
                                                  FROM {0}
                                                  WHERE ST_Intersects(geom, ST_MakeEnvelope(@xMin, @yMin, @xMax, @yMax, 4326))";
 
@@ -71,7 +71,7 @@ namespace MarInTime.Infrastructure.Repositories
                         {
                             while (await reader.ReadAsync())
                             {
-                                yield return new SpatialEntityDisplayDto(reader.GetInt32(0), reader.GetString(1));
+                                yield return new SpatialEntityDisplayDto(reader.GetInt32(0), reader.GetFieldValue<int?>(1), reader.GetString(2));
                             }
                         }
                         finally
