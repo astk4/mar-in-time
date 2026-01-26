@@ -1,6 +1,5 @@
 ﻿using MarInTime.Application.Repositories;
 using MarInTime.Domain;
-using MarInTime.Domain.DTOs;
 using MarInTime.Domain.Entities;
 using MarInTime.Infrastructure.Persistence;
 using MarInTime.Infrastructure.TransportModels;
@@ -8,7 +7,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Npgsql;
 using System.Collections.Frozen;
-using System.Diagnostics;
 
 namespace MarInTime.Infrastructure.Repositories
 {
@@ -17,7 +15,9 @@ namespace MarInTime.Infrastructure.Repositories
         private const string ZoomTiersCacheKey = "zooms";
         private const string EezChunkCommand = @"select gid, chunk_id, ST_AsGeoJSON(geom)
                                                  FROM {0}
-                                                 WHERE ST_Intersects(geom, ST_MakeEnvelope(@xMin, @yMin, @xMax, @yMax, 4326))";
+                                                 WHERE ST_Intersects(geom, ST_MakeEnvelope(@xMin, @yMin, @xMax, @yMax, 4326)) ORDER BY ",
+                             orderByAreaPart = " ST_Area(geom) DESC",
+                             orderByDistanceToViewportCenterPart = " distance_from_chunk_to_point(geom, @pointX, @pointY)";
 
         private readonly IConfiguration configuration;
         private readonly IMemoryCache memoryCache;
@@ -49,7 +49,7 @@ namespace MarInTime.Infrastructure.Repositories
                                                        .ToListAsync();
         }
 
-        public async IAsyncEnumerable<SpatialEntityDisplayDto> GetChunksInBounds(string tableName, double xMin, double yMin, double xMax, double yMax)
+        public async IAsyncEnumerable<SpatialEntityDisplayDto> GetChunksInBounds(string tableName, double xMin, double yMin, double xMax, double yMax, bool orderByArea)
         {
             string connStr = configuration["Data:Main"]!;
             using(NpgsqlConnection connection = new NpgsqlConnection(connStr))
@@ -57,6 +57,7 @@ namespace MarInTime.Infrastructure.Repositories
                 await connection.OpenAsync();
 
                 string cmdText = string.Format(EezChunkCommand, tableName);
+                cmdText += orderByArea ? orderByAreaPart : orderByDistanceToViewportCenterPart;
 
                 using (NpgsqlCommand selectCommand = new NpgsqlCommand(cmdText, connection))
                 {
@@ -64,6 +65,9 @@ namespace MarInTime.Infrastructure.Repositories
                     selectCommand.Parameters.AddWithValue("@xMax", xMax);
                     selectCommand.Parameters.AddWithValue("@yMin", yMin);
                     selectCommand.Parameters.AddWithValue("@yMax", yMax);
+
+                    selectCommand.Parameters.AddWithValue("@pointX", (xMin + xMax) / 2);
+                    selectCommand.Parameters.AddWithValue("@pointY", (yMin + yMax) / 2);
 
                     using (NpgsqlDataReader reader = await selectCommand.ExecuteReaderAsync())
                     {

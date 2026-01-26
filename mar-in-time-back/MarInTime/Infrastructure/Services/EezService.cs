@@ -30,7 +30,7 @@ namespace MarInTime.Infrastructure.Services
                 (int min, int max) tierRange = ZoomNameToRange(n);
                 return tierRange.min <= zoom && tierRange.max >= zoom;
             });
-            return this.gisRepository.GetChunksInBounds(zoomRelName, minLng, minLat, maxLng, maxLat);
+            return this.gisRepository.GetChunksInBounds(zoomRelName, minLng, minLat, maxLng, maxLat, zoom > 4);
         }
 
         public bool ZoomTierEquals(int zoom1, int zoom2)

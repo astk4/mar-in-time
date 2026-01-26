@@ -1,4 +1,4 @@
-CREATE FUNCTION public.distance_to_viewport_center(IN center_x double precision, IN center_y double precision, IN viewport_center_x double precision, IN viewport_center_y double precision)
+CREATE FUNCTION public.distance_from_chunk_to_point(IN chunk geometry, IN point_x double precision, IN point_y double precision)
     RETURNS double precision
     LANGUAGE 'plpgsql'
 AS
@@ -6,12 +6,12 @@ $$
 DECLARE
    distance float8;
 BEGIN
-   SELECT ST_Distance(ST_Point(center_x, center_y, 4326)::geometry, 
-		      ST_Point(viewport_center_x, viewport_center_y, 4326)::geometry)
+   SELECT ST_Distance(ST_Centroid(chunk)::geometry, 
+		      		  ST_Point(point_x, point_y, 4326)::geometry)
    INTO distance;
    RETURN distance;
 END
 $$;
 
-ALTER FUNCTION public.distance_to_viewport_center(double precision, double precision, double precision, double precision)
+ALTER FUNCTION public.distance_from_chunk_to_point(geometry, double precision, double precision)
     OWNER TO postgres;
