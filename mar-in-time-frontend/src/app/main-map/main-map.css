@@ -1,0 +1,10 @@
+/* :host refers to main-map tag itself*/
+:host {
+  display: block; 
+  height: 93vh; /*might change back to 100 */
+                /*if no titles above the map are needed*/
+}
+
+div {
+  height: -webkit-fill-available;
+}

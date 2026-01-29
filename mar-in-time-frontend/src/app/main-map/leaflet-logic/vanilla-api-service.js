@@ -1,4 +1,4 @@
-async function fetchGet(url) {
+export async function fetchGet(url) {
   try {
     const response = await fetch(url);
     if (!response.ok) {
