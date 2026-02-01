@@ -1,0 +1,25 @@
+.opened {
+    width: 60vh;
+}
+
+.closed {
+    width: 0vh;
+}
+
+#toggle-side {
+    z-index: 401;
+    cursor: pointer;
+}
+
+#side-info {
+    height: 100%;
+}
+
+.icon {
+    background-color: white;
+    mask-repeat: no-repeat;
+    -webkit-mask-repeat: no-repeat;
+
+    width: 8vh;
+    height: 5vh;
+}

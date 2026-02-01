@@ -1,8 +1,8 @@
 /* :host refers to main-map tag itself*/
 :host {
+  width: 100%;
   display: block; 
-  height: 93vh; /*might change back to 100 */
-                /*if no titles above the map are needed*/
+  height: 100vh;
 }
 
 div {
