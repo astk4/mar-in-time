@@ -9,6 +9,12 @@ let minLat = -85.05112878, maxLat = 85.05112878,
 var prevZoomLevel = 4;
 var layersToRemove = [];
 
+var onMapClickAngularCallback = null;
+
+export function registerOnMapClickCallback(callback) {
+  onMapClickAngularCallback = callback;
+}
+
 async function myOnMove() 
 {
   const bbox = boundsToObject(basicMap.getBounds());
@@ -60,6 +66,11 @@ export function initMainMap() {
     
     basicMap.on('moveend', myOnMove);
     basicMap.on('zoomend', myOnZoom);
+    basicMap.on('click', function(e) {
+      if (onMapClickAngularCallback) {
+        onMapClickAngularCallback(e.latlng.lat, e.latlng.lng);
+      }
+    });
 
     L.tileLayer( 'http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
@@ -169,3 +180,4 @@ async function updateEezLayer(bbox, zoomLevel, prevZoomLevel=undefined) {
 window.patchIconPaths = patchIconPaths;
 window.initMainMap = initMainMap;
 window.addMarkers = addMarkers;
+window.registerOnMapClickCallback = registerOnMapClickCallback;

@@ -7,8 +7,9 @@
                  [style.mask-image]="'url(/assets/ui-images/forward-solid-full.svg)'"
                  [style.-webkit-mask-image]="'url(/assets/ui-images/forward-solid-full.svg)'">
             </div>
-        </button>
+        </button>    
     }
+    <coordinates-display [class.hidden]="!isOpen"></coordinates-display>
 </div> 
 
 @if (!isOpen) {
