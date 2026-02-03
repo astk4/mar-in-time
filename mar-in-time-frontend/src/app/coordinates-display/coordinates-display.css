@@ -5,3 +5,7 @@ p {
 div {
     margin: 0.5rem;
 }
+
+.monospace {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}

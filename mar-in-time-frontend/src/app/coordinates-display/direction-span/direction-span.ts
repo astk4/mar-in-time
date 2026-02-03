@@ -12,9 +12,9 @@ export class DirectionSpan {
   negText: string = "";
   resultText: string = this.posText;
 
-  posColor: string = "";
-  negColor: string = "";
-  resultColor: string = this.posColor;
+  posClass: string = "";
+  negClass: string = "";
+  resultClass: string = this.posClass;
 
   @Input()
   set positiveText(val: string) {
@@ -27,18 +27,18 @@ export class DirectionSpan {
   }
 
   @Input()
-  set positiveColor(val: string) {
-    this.posColor = val;
+  set positiveClass(val: string) {
+    this.posClass = val;
  }
 
   @Input()
-  set negativeColor(val: string) {
-    this.negColor = val;
+  set negativeClass(val: string) {
+    this.negClass = val;
   }
 
   @Input()
   set direction(val: number) {
     this.resultText = val >= 0 ? this.posText : this.negText;
-    this.resultColor = val >= 0 ? this.posColor : this.negColor;
+    this.resultClass = val >= 0 ? this.posClass : this.negClass;
   }
 }

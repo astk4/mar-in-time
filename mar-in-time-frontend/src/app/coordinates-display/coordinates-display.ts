@@ -1,5 +1,6 @@
 import { Component, ViewChildren } from '@angular/core';
 import { DirectionSpan } from '../coordinates-display/direction-span/direction-span';
+import { App } from '../app';
 
 @Component({
   selector: 'coordinates-display',
@@ -27,4 +28,22 @@ export class CoordinatesDisplay {
   getSign(val: number) : number {
     return val >= 0 ? 1 : -1;
   }
+
+  toDMS(deg: number, padDegrees: number = 2) : string {
+
+    const absValue = Math.abs(deg);
+    const degOnly = Math.trunc(absValue);
+    
+    let result = `${degOnly}`.padStart(padDegrees, '0') + '° ';
+
+    const minutes = (absValue - degOnly) * 60; 
+    
+    const wholeMinutes = Math.trunc(minutes);
+    const wholeMinutesStr = wholeMinutes.toString().padStart(2, '0');
+    
+    const remMinutesFractionPart = Math.round((minutes - wholeMinutes) * 1000);
+    const remMinutesStr = remMinutesFractionPart.toString().padStart(3, '0');
+
+    return result + wholeMinutesStr + '.' + remMinutesStr + "'";
+  } 
 }

@@ -12,6 +12,11 @@ import { patchIconPaths } from './main-map/leaflet-logic/main_map.js';
 export class App {
   protected readonly title = signal('mar-in-time-frontend');
 
+  static roundTo(num: number, decimals: number): number {
+    const pow = Math.pow(10, decimals);
+    return Math.round((num+Number.EPSILON) * pow) / pow;
+  }
+
   ngOnInit() {
     patchIconPaths();
   }
