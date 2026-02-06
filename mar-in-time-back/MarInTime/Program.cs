@@ -7,6 +7,8 @@ using Microsoft.EntityFrameworkCore;
 using NetTopologySuite.IO.Converters;
 using System.Text.Json.Serialization;
 using StackExchange.Redis;
+using MarInTime.Domain.DTOs;
+using MarInTime.Domain.Entities;
 
 namespace MarInTime
 {
@@ -22,8 +24,12 @@ namespace MarInTime
             });
 
             builder.Services.AddTransient<IPortRepository, PortRepository>();
-            builder.Services.AddTransient<IGisRepository, EconomicZoneRepository>();
-            builder.Services.AddScoped<IEezService, EezService>();
+
+            builder.Services.AddTransient<ILandChecker, LandChecker>();
+
+            builder.Services.AddTransient<IGisStreamRepository, EconomicZoneRepository>();
+            builder.Services.AddTransient<ISpatialRepository<ExclusiveEconomicZone>, EconomicZoneRepository>();
+            builder.Services.AddScoped<IGisService<EconomicZoneDto>, EezService>();
 
             string redisHost = builder.Configuration["Redis:Host"]!,
                    redisPort = builder.Configuration["Redis:Port"]!;

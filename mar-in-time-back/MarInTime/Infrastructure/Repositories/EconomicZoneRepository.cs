@@ -1,16 +1,18 @@
 ﻿using MarInTime.Application.Repositories;
 using MarInTime.Domain;
+using MarInTime.Domain.DTOs;
 using MarInTime.Domain.Entities;
 using MarInTime.Infrastructure.Persistence;
 using MarInTime.Infrastructure.TransportModels;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using NetTopologySuite.Geometries;
 using Npgsql;
 using System.Collections.Frozen;
 
 namespace MarInTime.Infrastructure.Repositories
 {
-    public class EconomicZoneRepository : Repository<MainDbContext>, IGisRepository, IEconomicZoneRepository
+    public class EconomicZoneRepository : Repository<MainDbContext>, IGisStreamRepository, ISpatialRepository<ExclusiveEconomicZone>
     {
         private const string ZoomTiersCacheKey = "zooms";
         private const string EezChunkCommand = @"select gid, chunk_id, ST_AsGeoJSON(geom)

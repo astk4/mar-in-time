@@ -1,4 +1,5 @@
-﻿using MarInTime.Application.Services;
+﻿using MarInTime.Application.Repositories;
+using MarInTime.Application.Services;
 using MarInTime.Domain.DTOs;
 using MarInTime.Domain.Entities;
 using MarInTime.Presentation.ViewModels;
@@ -14,11 +15,13 @@ namespace MarInTime.Presentation.Controllers
     [Route("spatial")]
     public class SpatialEntitiesController : ControllerBase
     {
-        private readonly IEezService eezService;
+        private readonly IGisService<EconomicZoneDto> eezService;
+        private readonly ILandChecker landChecker;
         private readonly StackExchange.Redis.IDatabase redisDb;
-        public SpatialEntitiesController(IEezService eezService, IConnectionMultiplexer multiplexer)
+        public SpatialEntitiesController(IGisService<EconomicZoneDto> eezService, ILandChecker landChecker, IConnectionMultiplexer multiplexer)
         {
             this.eezService = eezService;
+            this.landChecker = landChecker;
             this.redisDb = multiplexer.GetDatabase();
         }
 
@@ -92,6 +95,21 @@ namespace MarInTime.Presentation.Controllers
                 await Response.WriteAsync("\n");
                 await Response.Body.FlushAsync();
             }
+        }
+
+        [HttpGet]
+        [Route("point")]
+        public async Task<ZonesAtPointViewModel> GetZonesListAtSeaPoint(double lng, double lat)
+        {
+            if (await landChecker.IsOnLand(lng, lat))
+            {
+                return new ZonesAtPointViewModel() { AtSea = false };
+            }
+
+            var resultViewModel = new ZonesAtPointViewModel() { AtSea = true };
+
+            resultViewModel.ExclusiveEconomicZone = await eezService.TryGetAtCoordinates(lng, lat);
+            return resultViewModel;
         }
     }
 }
