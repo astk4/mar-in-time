@@ -15,12 +15,6 @@ namespace MarInTime.Domain.Entities
         public override int GID { get; set; }
 
         /// <summary>
-        /// Polygon feature of the zone.
-        /// </summary>
-        [Column("geom")]
-        public override required MultiPolygon Geometry { get; set; }
-
-        /// <summary>
         /// Marine Regions Geographic Identifier of the polygon feature (= of the whole zone).
         /// </summary>
         [Column("mrgid")]

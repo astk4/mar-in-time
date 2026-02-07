@@ -58,7 +58,7 @@ namespace MarInTime.Infrastructure.Services
 
         public async Task<EconomicZoneDto?> TryGetAtCoordinates(double lng, double lat)
         {
-            var iReadOnlyList = await eezSpatialRepository.GetZones(new WithinSpecification<ExclusiveEconomicZone>(lng, lat));
+            var iReadOnlyList = await eezSpatialRepository.GetZonesAt(lng, lat);
             if (!iReadOnlyList.Any())
             {
                 return null;

@@ -21,6 +21,8 @@ namespace MarInTime.Infrastructure.Repositories
                              orderByAreaPart = " ST_Area(geom) DESC",
                              orderByDistanceToViewportCenterPart = " distance_from_chunk_to_point(geom, @pointX, @pointY)";
 
+        private const string GidByPointCommand = "select gid as \"Value\" from eez_v12 where ST_Intersects(geom, ST_Point({0}, {1}, 4326))";
+
         private readonly IConfiguration configuration;
         private readonly IMemoryCache memoryCache;
 
@@ -44,9 +46,16 @@ namespace MarInTime.Infrastructure.Repositories
             return namesSet!;
         }
 
-        public async Task<IReadOnlyList<ExclusiveEconomicZone>> GetZones(ISpecification<ExclusiveEconomicZone> specification)
+        public async Task<IReadOnlyList<ExclusiveEconomicZone>> GetZonesAt(double lng, double lat)
         {
-            return await context.ExclusiveEconomicZones.Where(specification.IsSatisfiedBy)
+            int? gid = await context.Database.SqlQueryRaw<int?>(GidByPointCommand, lng, lat).SingleOrDefaultAsync();
+
+            if (gid == null)
+            {
+                return Array.Empty<ExclusiveEconomicZone>();
+            }
+
+            return await context.ExclusiveEconomicZones.Where(new GidSpecification(gid.Value).IsSatisfiedBy)
                                                        .ToAsyncEnumerable()
                                                        .ToListAsync();
         }

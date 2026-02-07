@@ -5,6 +5,6 @@ namespace MarInTime.Application.Repositories
 {
     public interface ISpatialRepository<T> where T : SpatialEntity
     {
-        public Task<IReadOnlyList<T>> GetZones(ISpecification<T> specification);
+        public Task<IReadOnlyList<T>> GetZonesAt(double lng, double lat);
     }
 }
