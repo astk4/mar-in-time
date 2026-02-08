@@ -496,3 +496,6 @@ appsettings.json
 
 # libraries
 leaflet/
+
+#sensitive configs
+*.config

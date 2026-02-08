@@ -3,7 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.11.35312.102
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MarInTime", "MarInTime\MarInTime.csproj", "{4744C941-E28F-4904-9907-62C0F4EAC891}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MarInTime", "MarInTime\MarInTime.csproj", "{4744C941-E28F-4904-9907-62C0F4EAC891}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StreamAIS", "StreamAIS\StreamAIS.csproj", "{7201D42D-F2EC-432B-B799-A27B5F3A56A1}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,6 +17,10 @@ Global
 		{4744C941-E28F-4904-9907-62C0F4EAC891}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4744C941-E28F-4904-9907-62C0F4EAC891}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4744C941-E28F-4904-9907-62C0F4EAC891}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7201D42D-F2EC-432B-B799-A27B5F3A56A1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7201D42D-F2EC-432B-B799-A27B5F3A56A1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7201D42D-F2EC-432B-B799-A27B5F3A56A1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7201D42D-F2EC-432B-B799-A27B5F3A56A1}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
