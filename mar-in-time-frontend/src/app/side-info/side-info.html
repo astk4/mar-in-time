@@ -1,0 +1,25 @@
+<div [ngClass]="{'closed': !isOpen, 'opened': isOpen}" 
+     class="border-l-4 border-blue-500" id="side-info">
+    @if (isOpen) {
+        <button id="toggle-side" (click)="onToggle()"
+                class = "bg-blue-500 rounded">
+            <div class="icon"
+                 [style.mask-image]="'url(/assets/ui-images/forward-solid-full.svg)'"
+                 [style.-webkit-mask-image]="'url(/assets/ui-images/forward-solid-full.svg)'">
+            </div>
+        </button>    
+    }
+    <coordinates-display [class.hidden]="!isOpen"></coordinates-display>
+
+    <point-summary></point-summary>
+</div> 
+
+@if (!isOpen) {
+    <button id="toggle-side" (click)="onToggle()"
+            class="fixed top-0 right-0 bg-blue-500 rounded">
+        <div class="icon"
+                 [style.mask-image]="'url(/assets/ui-images/backward-solid-full.svg)'"
+                 [style.-webkit-mask-image]="'url(/assets/ui-images/backward-solid-full.svg)'">
+        </div>
+    </button>
+}

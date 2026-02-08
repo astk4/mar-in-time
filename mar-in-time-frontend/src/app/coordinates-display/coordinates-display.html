@@ -1,0 +1,41 @@
+@if(lat == null || lng == null) {
+    <p class="text-2xl">no point selected</p>
+} 
+@else {
+    <p class="text-3xl">
+        {{getAbs(lat)}}
+        <direction-span [direction]="getSign(lat)" 
+                        positiveText="N" 
+                        negativeText="S" 
+                        positiveClass="blue-bordered" 
+                        negativeClass="red-bordered">
+        </direction-span>
+
+        {{getAbs(lng)}}
+        <direction-span [direction]="getSign(lng)" 
+                        positiveText="E" 
+                        negativeText="W" 
+                        positiveClass="yellow-bordered" 
+                        negativeClass="cyan-bordered">
+        </direction-span>
+    </p>
+    <div class="border-2 border-gray-400"></div>
+    <p class="text-2xl">
+        <span class="monospace">{{toDMS(lat)}}</span>
+        
+        <direction-span [direction]="getSign(lat)" 
+                        positiveText="N" 
+                        negativeText="S" 
+                        positiveClass="blue-bordered" 
+                        negativeClass="red-bordered">
+        </direction-span>
+
+        <span class="monospace">{{toDMS(lng, 3)}}</span>
+        <direction-span [direction]="getSign(lng)" 
+                        positiveText="E" 
+                        negativeText="W" 
+                        positiveClass="yellow-bordered" 
+                        negativeClass="cyan-bordered">
+        </direction-span>
+    </p>
+}

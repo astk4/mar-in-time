@@ -1,5 +1,5 @@
-
 import { portPopupTemplate } from "./popup_exports.js";
+import { fetchGet } from "./vanilla-api-service.js";
 import  * as spatialOptimization from "./spatial_optimization.js";
 
 var basicMap;
@@ -9,7 +9,43 @@ let minLat = -85.05112878, maxLat = 85.05112878,
 var prevZoomLevel = 4;
 var layersToRemove = [];
 
-function initMainMap() {
+var onMapClickAngularCallback = null;
+
+export function registerOnMapClickCallback(callback) {
+  onMapClickAngularCallback = callback;
+}
+
+async function myOnMove() 
+{
+  const bbox = boundsToObject(basicMap.getBounds());
+  if (!spatialOptimization.validateMove(bbox, basicMap.getCenter())) { return; }
+  
+  await updateEezLayer(bbox, basicMap.getZoom());
+};
+
+async function myOnZoom() 
+{
+  let zoomNow = basicMap.getZoom();
+
+  console.log("zoom level:", zoomNow);
+  const bbox = boundsToObject(basicMap.getBounds());
+  await updateEezLayer(bbox, zoomNow, prevZoomLevel);
+
+  prevZoomLevel = zoomNow;
+};
+
+export function patchIconPaths() 
+{
+  delete L.Icon.Default.prototype._getIconUrl;
+
+  L.Icon.Default.mergeOptions({
+    iconRetinaUrl: 'assets/leaflet/dist/images/marker-icon-2x.png',
+    iconUrl: 'assets/leaflet/dist/images/marker-icon.png',
+    shadowUrl: 'assets/leaflet/dist/images/marker-shadow.png',
+  });
+}
+
+export function initMainMap() {
 
     let myMaxBounds = [
       [maxLat, maxLong], //south west
@@ -28,27 +64,13 @@ function initMainMap() {
 
     eezLayer = L.layerGroup().addTo(basicMap);
     
-    const myOnMove = async function() 
-    {
-      const bbox = boundsToObject(basicMap.getBounds());
-      if (!spatialOptimization.validateMove(bbox, basicMap.getCenter())) { return; }
-      
-      await updateEezLayer(bbox, basicMap.getZoom());
-    };
-
-    const myOnZoom = async function() 
-    {
-      let zoomNow = basicMap.getZoom();
-
-      console.log("zoom level:", zoomNow);
-      const bbox = boundsToObject(basicMap.getBounds());
-      await updateEezLayer(bbox, zoomNow, prevZoomLevel);
-
-      prevZoomLevel = zoomNow;
-    };
-
     basicMap.on('moveend', myOnMove);
     basicMap.on('zoomend', myOnZoom);
+    basicMap.on('click', function(e) {
+      if (onMapClickAngularCallback) {
+        onMapClickAngularCallback(e.latlng.lat, e.latlng.lng);
+      }
+    });
 
     L.tileLayer( 'http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
@@ -64,7 +86,7 @@ function initMainMap() {
     myOnMove();
 }
 
-async function addMarkers()
+export async function addMarkers()
 {
   let markers = await fetchGet("https://localhost:7120/locations/ports");
 
@@ -155,5 +177,7 @@ async function updateEezLayer(bbox, zoomLevel, prevZoomLevel=undefined) {
     }
 }
 
+window.patchIconPaths = patchIconPaths;
 window.initMainMap = initMainMap;
 window.addMarkers = addMarkers;
+window.registerOnMapClickCallback = registerOnMapClickCallback;

@@ -1,0 +1,28 @@
+@if (this.atSea != null) {
+    <div>
+        @if(this.atSea && this.eezObject == null) {
+            <p class="text-xl text-blue-600">Neutral waters</p>
+        }
+        @else if(this.atSea && this.eezObject != null) {
+            <p class="text-xl text-blue-600">{{ eezObject.name }}</p>
+            <p class="font-medium">Type:
+                <span class="font-normal"> {{ eezObject.type }}</span>
+            </p>
+
+            @if(eezObject.territories.length > 1) {
+                <p class="font-medium">Territories:</p>
+                @for(territory of eezObject.territories; track territory) {
+                    <p>     {{ territory }}</p>
+                }
+            }
+            @else {
+                <p class="font-medium">Territory:
+                    <span class="font-normal"> {{ eezObject.territories[0] }}</span>
+                </p>
+            } 
+        }
+        @else {
+            <p class="text-xl text-gray-600">Point is at land</p>
+        }
+    </div>
+}

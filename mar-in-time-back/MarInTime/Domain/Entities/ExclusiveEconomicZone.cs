@@ -5,20 +5,14 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace MarInTime.Domain.Entities
 {
     [Table("eez_v12")]
-    public class ExclusiveEconomicZone
+    public class ExclusiveEconomicZone : SpatialEntity
     {
         /// <summary>
         /// Internal primary key for the zone, essential for technical performance of the mapping.
         /// </summary>
         [Key]
         [Column("gid")]
-        public int GID { get; set; }
-
-        /// <summary>
-        /// Polygon feature of the zone.
-        /// </summary>
-        [Column("geom")]
-        public required MultiPolygon Geometry { get; set; }
+        public override int GID { get; set; }
 
         /// <summary>
         /// Marine Regions Geographic Identifier of the polygon feature (= of the whole zone).

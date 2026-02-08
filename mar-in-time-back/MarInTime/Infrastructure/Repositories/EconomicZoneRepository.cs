@@ -1,16 +1,18 @@
 ﻿using MarInTime.Application.Repositories;
 using MarInTime.Domain;
+using MarInTime.Domain.DTOs;
 using MarInTime.Domain.Entities;
 using MarInTime.Infrastructure.Persistence;
 using MarInTime.Infrastructure.TransportModels;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using NetTopologySuite.Geometries;
 using Npgsql;
 using System.Collections.Frozen;
 
 namespace MarInTime.Infrastructure.Repositories
 {
-    public class EconomicZoneRepository : Repository<MainDbContext>, IGisRepository, IEconomicZoneRepository
+    public class EconomicZoneRepository : Repository<MainDbContext>, IGisStreamRepository, ISpatialRepository<ExclusiveEconomicZone>
     {
         private const string ZoomTiersCacheKey = "zooms";
         private const string EezChunkCommand = @"select gid, chunk_id, ST_AsGeoJSON(geom)
@@ -18,6 +20,8 @@ namespace MarInTime.Infrastructure.Repositories
                                                  WHERE ST_Intersects(geom, ST_MakeEnvelope(@xMin, @yMin, @xMax, @yMax, 4326)) ORDER BY ",
                              orderByAreaPart = " ST_Area(geom) DESC",
                              orderByDistanceToViewportCenterPart = " distance_from_chunk_to_point(geom, @pointX, @pointY)";
+
+        private const string GidByPointCommand = "select gid as \"Value\" from eez_v12 where ST_Intersects(geom, ST_Point({0}, {1}, 4326))";
 
         private readonly IConfiguration configuration;
         private readonly IMemoryCache memoryCache;
@@ -42,9 +46,16 @@ namespace MarInTime.Infrastructure.Repositories
             return namesSet!;
         }
 
-        public async Task<IReadOnlyList<ExclusiveEconomicZone>> GetZones(ISpecification<ExclusiveEconomicZone> specification)
+        public async Task<IReadOnlyList<ExclusiveEconomicZone>> GetZonesAt(double lng, double lat)
         {
-            return await context.ExclusiveEconomicZones.Where(specification.IsSatisfiedBy)
+            int? gid = await context.Database.SqlQueryRaw<int?>(GidByPointCommand, lng, lat).SingleOrDefaultAsync();
+
+            if (gid == null)
+            {
+                return Array.Empty<ExclusiveEconomicZone>();
+            }
+
+            return await context.ExclusiveEconomicZones.Where(new GidSpecification(gid.Value).IsSatisfiedBy)
                                                        .ToAsyncEnumerable()
                                                        .ToListAsync();
         }

@@ -1,0 +1,10 @@
+/* :host refers to main-map tag itself*/
+:host {
+  width: 100%;
+  display: block; 
+  height: 100vh;
+}
+
+div {
+  height: -webkit-fill-available;
+}

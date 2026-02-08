@@ -1,0 +1,35 @@
+:host {
+    --shadow-offset: 2px;
+}
+
+.red-bordered {
+    color: red;
+    text-shadow: var(--shadow-offset) var(--shadow-offset) 0.5px darkred,
+                 calc(var(--shadow-offset) * -1) calc(var(--shadow-offset) * -1) 0.5px darkred,
+                 calc(var(--shadow-offset) * -1) var(--shadow-offset) 0.5px darkred,
+                 var(--shadow-offset) calc(var(--shadow-offset) * -1) 0.5px darkred;
+}
+
+.blue-bordered {
+    color: blue;
+    text-shadow: var(--shadow-offset) var(--shadow-offset) darkblue,
+                 calc(var(--shadow-offset) * -1) calc(var(--shadow-offset) * -1) darkblue,
+                 calc(var(--shadow-offset) * -1) var(--shadow-offset) darkblue,
+                 var(--shadow-offset) calc(var(--shadow-offset) * -1) darkblue;
+}
+
+.yellow-bordered {
+    color: yellow;
+    text-shadow: var(--shadow-offset) var(--shadow-offset) goldenrod,
+                 calc(var(--shadow-offset) * -1) calc(var(--shadow-offset) * -1) goldenrod,
+                 calc(var(--shadow-offset) * -1) var(--shadow-offset) goldenrod,
+                 var(--shadow-offset) calc(var(--shadow-offset) * -1) goldenrod;
+}
+
+.cyan-bordered {
+    color: cyan;
+    text-shadow: var(--shadow-offset) var(--shadow-offset) darkcyan,
+                 calc(var(--shadow-offset) * -1) calc(var(--shadow-offset) * -1) darkcyan,
+                 calc(var(--shadow-offset) * -1) var(--shadow-offset) darkcyan,
+                 var(--shadow-offset) calc(var(--shadow-offset) * -1) darkcyan;
+}
