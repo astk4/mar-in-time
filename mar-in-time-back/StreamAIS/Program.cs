@@ -1,14 +1,27 @@
-﻿using System.Net.WebSockets;
-using System.Text;
+﻿using Microsoft.Extensions.Configuration;
 using StreamAIS.Models;
+using StreamAIS.Models.AIS;
+using System.Net.WebSockets;
+using System.Text;
 using System.Text.Json;
-using Microsoft.Extensions.Configuration;
 
 namespace StreamAIS
 {
     internal static class Program
     {
         private const int BufferSize = 8192;
+        private const string positionReportStr = "PositionReport",
+                             shipDataStr = "ShipStaticData",
+                             staticDataStr = "StaticDataReport",
+                             safeBroadcastStr = "SafetyBroadcastMessage",
+                             safeAddrStr = "AddressedSafetyMessage";
+
+        private static readonly int offsetBeforeMsgType = "{\"Message\":{\"".Length;
+        private static readonly byte msgTypeEndByte = Encoding.UTF8.GetBytes("\"")[0];
+
+        private static int maxTypeLength = 64;
+        private static string currentMsgType = string.Empty;
+
         static void Main(string[] args)
         {
             string url = System.Configuration.ConfigurationManager.AppSettings["ApiUrl"]!;
@@ -68,6 +81,7 @@ namespace StreamAIS
             string[]? messageTypesFilter = confRoot.GetSection("MessageTypes").Get<string[]>();
             if (messageTypesFilter != null && messageTypesFilter.Length > 0)
             {
+                maxTypeLength = messageTypesFilter.Max(s => s.Length);
                 messageToSend.FilterMessageTypes = messageTypesFilter;
             }
 
@@ -83,7 +97,8 @@ namespace StreamAIS
         static private async Task WebSocketConsume(ClientWebSocket cws)
         {
             byte[] prevMsgBuffer = new byte[BufferSize],
-                   crtBuffer = new byte[BufferSize];
+                   crtBuffer = new byte[BufferSize],
+                   messageTypeBuffer = new byte[maxTypeLength];
             int prevCount = 0;
             while (true)
             {
@@ -107,8 +122,58 @@ namespace StreamAIS
 
                 prevCount = result.Count;
 
-                Console.WriteLine(Encoding.UTF8.GetString(prevMsgBuffer));
-                Console.WriteLine();
+                Array.Fill<byte>(messageTypeBuffer, 0, 0, maxTypeLength);
+
+                ProcessMessageBytes(prevMsgBuffer, result.Count, ref messageTypeBuffer);
+            }
+        }
+
+        private static void ProcessMessageBytes(byte[] message, int bytesCount, ref byte[] bufferForType)
+        {
+            int crtMsgTypeLength = 0;
+
+            for (int i = 0; i <= maxTypeLength; i++)
+            {
+                if (message[i+offsetBeforeMsgType] == msgTypeEndByte)
+                {
+                    crtMsgTypeLength = i;
+                    break;
+                }
+            }
+
+            Array.Copy(message, offsetBeforeMsgType, bufferForType, 0, crtMsgTypeLength);
+            currentMsgType = Encoding.UTF8.GetString(bufferForType).TrimEnd('\0');
+
+            switch (currentMsgType)
+            {
+                case shipDataStr:
+                    AisMessageWrapper<ShipDataMessage> shipMessage 
+                        = JsonSerializer.Deserialize(message.AsSpan(0, bytesCount),
+                                                     AisJsonSerializationContext.Default.AisMessageWrapperShipDataMessage)!;
+                    Console.WriteLine(shipMessage.Message);
+                    break;
+                case staticDataStr:
+                    AisMessageWrapper<StaticDataMessage> staticMessage 
+                        = JsonSerializer.Deserialize(message.AsSpan(0, bytesCount),
+                                                     AisJsonSerializationContext.Default.AisMessageWrapperStaticDataMessage)!;
+                    Console.WriteLine(staticMessage.Message);
+                    break;
+                case safeBroadcastStr or safeAddrStr:
+                    AisMessageWrapper<SafetyRelatedMessage> broadcast
+                        = JsonSerializer.Deserialize(message.AsSpan(0, bytesCount),
+                                 AisJsonSerializationContext.Default.AisMessageWrapperSafetyRelatedMessage)!;
+                    Console.WriteLine(broadcast.Message);
+                    break;
+                default:
+                    if (currentMsgType.Substring(currentMsgType.Length - positionReportStr.Length, positionReportStr.Length) == positionReportStr)
+                    {
+                        AisMessageWrapper<PositionMessage> reportMessage 
+                            = JsonSerializer.Deserialize(message.AsSpan(0, bytesCount),
+                                                         AisJsonSerializationContext.Default.AisMessageWrapperPositionMessage)!;
+                        Console.WriteLine(reportMessage.Message);
+                        break;
+                    }
+                    break;
             }
         }
     }

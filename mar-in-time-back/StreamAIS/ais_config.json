@@ -6,8 +6,8 @@
     "MaxLng": 180
   },
   "MessageTypes": [
-    "ExtendedClassBPositionReport",
     "SafetyBroadcastMessage",
+    "AddressedSafetyMessage",
     "PositionReport",
     "StaticDataReport",
     "ShipStaticData",
