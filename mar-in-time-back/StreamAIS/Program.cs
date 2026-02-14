@@ -1,9 +1,11 @@
 ﻿using Microsoft.Extensions.Configuration;
 using StreamAIS.Models;
 using StreamAIS.Models.AIS;
+using System.Buffers;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Channels;
 
 namespace StreamAIS
 {
@@ -22,24 +24,65 @@ namespace StreamAIS
         private static int maxTypeLength = 64;
         private static string currentMsgType = string.Empty;
 
-        static void Main(string[] args)
+        static async Task Main(string[] args)
         {
             string url = System.Configuration.ConfigurationManager.AppSettings["ApiUrl"]!;
+            
+            var producerConsumerChannel = Channel.CreateBounded<MessageKitDto>(new BoundedChannelOptions(1000)
+            {
+                FullMode = BoundedChannelFullMode.DropOldest,
+                SingleReader = true,
+                SingleWriter = true
+            });
 
+            int count = 0;
+            
             using (ClientWebSocket cws = new ClientWebSocket())
             {
-                cws.ConnectAsync(new Uri(url), CancellationToken.None).Wait();
+                await cws.ConnectAsync(new Uri(url), CancellationToken.None);
                 Console.WriteLine("connected");
 
                 byte[] subscriptionBytes = GetSubscriptionMessageBytes();
 
-                cws.SendAsync(subscriptionBytes, WebSocketMessageType.Text, true, CancellationToken.None).Wait();
+                await cws.SendAsync(subscriptionBytes, WebSocketMessageType.Text, true, CancellationToken.None);
 
                 WebSocketCloseStatus futureCloseStatus = WebSocketCloseStatus.NormalClosure;
                 string? explMessage = null;
+                
+                Task consumerTask = Task.Run(() => StartConsumingLoop(producerConsumerChannel));
                 try
                 {
-                    WebSocketConsume(cws).Wait();
+                    while (cws.State == WebSocketState.Open)
+                    {
+                        byte[] prevMsgBuffer = ArrayPool<byte>.Shared.Rent(BufferSize);
+                        byte[] crtBuffer = ArrayPool<byte>.Shared.Rent(BufferSize);
+                        byte[] messageTypeBuffer = ArrayPool<byte>.Shared.Rent(maxTypeLength);
+
+                        WebSocketReceiveResult result = await cws.ReceiveAsync(crtBuffer, CancellationToken.None);
+
+                        if (result.MessageType == WebSocketMessageType.Close)
+                        {
+                            ArrayPool<byte>.Shared.Return(prevMsgBuffer);
+                            ArrayPool<byte>.Shared.Return(crtBuffer);
+                            ArrayPool<byte>.Shared.Return(messageTypeBuffer);
+                            break;
+                        }
+
+                        if (!result.EndOfMessage)
+                        {
+                            Array.Copy(crtBuffer, 0, prevMsgBuffer, count, result.Count);
+                            count += result.Count;
+                            continue;
+                        }
+
+                        Array.Fill<byte>(prevMsgBuffer, 0, result.Count, BufferSize - result.Count);
+                        Array.Copy(crtBuffer, prevMsgBuffer, result.Count);
+                        count = result.Count;
+
+                        await producerConsumerChannel.Writer.WriteAsync(new MessageKitDto(prevMsgBuffer, messageTypeBuffer, count));
+
+                        ArrayPool<byte>.Shared.Return(crtBuffer);
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -47,7 +90,16 @@ namespace StreamAIS
                     explMessage = ex.GetType().Name;
                     Console.WriteLine($"Closing because of exception!!! {ex.Message}");
                 }
-                cws.CloseAsync(futureCloseStatus, explMessage, CancellationToken.None).Wait();
+                finally
+                {
+                    if (cws.State != WebSocketState.Aborted)
+                    {
+                        await cws.CloseAsync(futureCloseStatus, explMessage, CancellationToken.None);
+                    }
+                    producerConsumerChannel.Writer.Complete();
+                }
+
+                await consumerTask;          
             }
         }
 
@@ -70,11 +122,11 @@ namespace StreamAIS
                 ApiKey = apiKey,
                 BoundingBoxes = new double[][][]
                 {
-                        new double[][]
-                        {
-                            new double[] { minLat, minLng },
-                            new double[] { maxLat, maxLng }
-                        }
+                    new double[][]
+                    {
+                        new double[] { minLat, minLng },
+                        new double[] { maxLat, maxLng }
+                    }
                 }
             };
 
@@ -94,41 +146,27 @@ namespace StreamAIS
             return Encoding.UTF8.GetBytes(messageJson);
         }
 
-        static private async Task WebSocketConsume(ClientWebSocket cws)
+        private static async Task StartConsumingLoop(Channel<MessageKitDto> messageChannel)
         {
-            byte[] prevMsgBuffer = new byte[BufferSize],
-                   crtBuffer = new byte[BufferSize],
-                   messageTypeBuffer = new byte[maxTypeLength];
-            int prevCount = 0;
-            while (true)
+            await foreach (MessageKitDto msg in messageChannel.Reader.ReadAllAsync())
             {
-                WebSocketReceiveResult result = await cws.ReceiveAsync(crtBuffer, CancellationToken.None);
-
-                if (result.MessageType == WebSocketMessageType.Close)
+                try
                 {
-                    break;
+                    ProcessMessageBytes(msg.MessageBuffer, msg.TypeBuffer, msg.BytesCount);
                 }
-
-                if (!result.EndOfMessage)
+                catch (Exception ex)
                 {
-                    Array.Copy(crtBuffer, 0, prevMsgBuffer, prevCount, result.Count);
-                    prevCount += result.Count;
-                    
-                    continue;
+                    Console.WriteLine("Consumer iteration exception: " + ex.Message);
                 }
-
-                Array.Fill<byte>(prevMsgBuffer, 0, result.Count, BufferSize - result.Count);
-                Array.Copy(crtBuffer, prevMsgBuffer, result.Count);
-
-                prevCount = result.Count;
-
-                Array.Fill<byte>(messageTypeBuffer, 0, 0, maxTypeLength);
-
-                ProcessMessageBytes(prevMsgBuffer, result.Count, ref messageTypeBuffer);
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(msg.MessageBuffer, true);
+                    ArrayPool<byte>.Shared.Return(msg.TypeBuffer, true);
+                }
             }
         }
 
-        private static void ProcessMessageBytes(byte[] message, int bytesCount, ref byte[] bufferForType)
+        private static void ProcessMessageBytes(byte[] message, byte[] bufferForType, int bytesCount)
         {
             int crtMsgTypeLength = 0;
 
