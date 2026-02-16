@@ -30,7 +30,8 @@
               "src/assets/leaflet/dist/leaflet.css"
             ],
             "scripts": [
-              "src/assets/leaflet/dist/leaflet.js"
+              "src/assets/leaflet/dist/leaflet.js",
+              "src/assets/signalr/microsoft-signalr_9.0.6.js"
             ]
           },
           "configurations": {
@@ -59,6 +60,9 @@
         },
         "serve": {
           "builder": "@angular/build:dev-server",
+          "options": {
+            "proxyConfig": "proxy.conf.js"
+          },
           "configurations": {
             "production": {
               "buildTarget": "mar-in-time-frontend:build:production"

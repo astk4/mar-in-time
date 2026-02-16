@@ -2,11 +2,12 @@
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using Microsoft.AspNetCore.Connections;
+using Microsoft.AspNetCore.SignalR;
 using System.Diagnostics;
 
 namespace MarInTime.Infrastructure.Services
 {
-    public class AisReceiverService : AisSender.AisSenderBase
+    public class AisReceiverService(IHubContext<AisResultHub> hubContext) : AisSender.AisSenderBase
     {
         public override async Task<Empty> SendMessages(IAsyncStreamReader<AISResult> requestStream, ServerCallContext context)
         {
@@ -22,6 +23,10 @@ namespace MarInTime.Infrastructure.Services
                     else if (message.ShipData != null)
                     {
                         Console.WriteLine($"some data for ship IMO{message.ShipData.IMONumber} {message.ShipData.Name}");
+
+                        await hubContext.Clients.All.SendAsync(AisResultHub.receiveShipData,
+                                                                 message.ShipData.IMONumber,
+                                                                 message.ShipData.Name);
                     }
                     else
                     {

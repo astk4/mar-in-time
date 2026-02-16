@@ -74,6 +74,7 @@ namespace MarInTime
             });
 
             builder.Services.AddGrpc();
+            builder.Services.AddSignalR();
 
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
@@ -97,6 +98,7 @@ namespace MarInTime
 
             app.MapControllers();
             app.MapGrpcService<AisReceiverService>();
+            app.MapHub<AisResultHub>("/hubs/ais");
 
             app.Run();
         }

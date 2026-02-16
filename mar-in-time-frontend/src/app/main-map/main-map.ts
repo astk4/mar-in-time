@@ -1,6 +1,7 @@
 import { Component } from '@angular/core';
 import { initMainMap, addMarkers, registerOnMapClickCallback } 
   from './leaflet-logic/main_map.js';
+import { initSignalR } from './signalr-connection.js'
 import { MapToUiService } from '../map-to-ui-service.js';
 
 @Component({
@@ -12,6 +13,7 @@ import { MapToUiService } from '../map-to-ui-service.js';
 export class MainMap {
 
   ngAfterViewInit() {
+    initSignalR();
     initMainMap();
     addMarkers();
     registerOnMapClickCallback(this.onMapClick.bind(this));
