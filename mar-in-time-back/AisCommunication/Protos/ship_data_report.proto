@@ -1,0 +1,29 @@
+﻿syntax = "proto3";
+
+option csharp_namespace = "AisCommunication.Shared";
+
+message ShipDataReport {
+	
+	int32 IMONumber = 1;
+
+	int32 dimA = 2;
+	int32 dimB = 3;
+	int32 dimC = 4;
+	int32 dimD = 5;
+
+	string name = 6;
+	string callSign = 7;
+	int32 shipType = 8;
+
+	int32 etaMonth = 9;
+	int32 etaDay = 10;
+	int32 etaHour = 11;
+	int32 etaMinute = 12;
+
+	double maxStaticDraught = 13;
+	string destination = 14;
+
+	int32 vendorIdModel = 15;
+	int32 vendorIdSerial = 16;
+	string vendorIdName = 17;
+}

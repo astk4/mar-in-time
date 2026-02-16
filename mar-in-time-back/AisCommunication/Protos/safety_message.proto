@@ -1,0 +1,10 @@
+﻿syntax = "proto3";
+
+option csharp_namespace = "AisCommunication.Shared";
+
+message SafetyMessage {
+
+	string text = 1;
+	int32 destinationMMSI = 2;
+	bool retransmission = 3;
+}

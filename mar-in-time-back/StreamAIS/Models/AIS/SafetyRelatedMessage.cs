@@ -1,8 +1,11 @@
-﻿namespace StreamAIS.Models.AIS
+﻿using System.Text.Json.Serialization;
+
+namespace StreamAIS.Models.AIS
 {
     public class SafetyRelatedMessage
     {
-        private SafetyRelatedReportBody ActualSafetyMessage
+        [JsonIgnore]
+        public SafetyRelatedReportBody ActualSafetyMessage
         {
             get => SafetyBroadcastMessage == null ? AddressedSafetyMessage! : SafetyBroadcastMessage!;
         }

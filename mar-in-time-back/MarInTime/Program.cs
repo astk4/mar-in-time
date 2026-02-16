@@ -73,6 +73,8 @@ namespace MarInTime
                 });
             });
 
+            builder.Services.AddGrpc();
+
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
 
@@ -94,6 +96,7 @@ namespace MarInTime
             app.UseAuthorization();
 
             app.MapControllers();
+            app.MapGrpcService<AisReceiverService>();
 
             app.Run();
         }

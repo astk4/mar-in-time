@@ -5,7 +5,9 @@ VisualStudioVersion = 17.11.35312.102
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MarInTime", "MarInTime\MarInTime.csproj", "{4744C941-E28F-4904-9907-62C0F4EAC891}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StreamAIS", "StreamAIS\StreamAIS.csproj", "{7201D42D-F2EC-432B-B799-A27B5F3A56A1}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "StreamAIS", "StreamAIS\StreamAIS.csproj", "{7201D42D-F2EC-432B-B799-A27B5F3A56A1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AisCommunication", "AisCommunication\AisCommunication.csproj", "{8A9F483C-8CAD-4401-8EA7-B59C66CD49DD}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,6 +23,10 @@ Global
 		{7201D42D-F2EC-432B-B799-A27B5F3A56A1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7201D42D-F2EC-432B-B799-A27B5F3A56A1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7201D42D-F2EC-432B-B799-A27B5F3A56A1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8A9F483C-8CAD-4401-8EA7-B59C66CD49DD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8A9F483C-8CAD-4401-8EA7-B59C66CD49DD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8A9F483C-8CAD-4401-8EA7-B59C66CD49DD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8A9F483C-8CAD-4401-8EA7-B59C66CD49DD}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

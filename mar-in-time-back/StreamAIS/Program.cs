@@ -1,4 +1,6 @@
-﻿using Microsoft.Extensions.Configuration;
+﻿using AisCommunication.Shared;
+using Grpc.Net.Client;
+using Microsoft.Extensions.Configuration;
 using StreamAIS.Models;
 using StreamAIS.Models.AIS;
 using System.Buffers;
@@ -6,6 +8,8 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
+using Google.Protobuf.WellKnownTypes;
+using Grpc.Core;
 
 namespace StreamAIS
 {
@@ -26,8 +30,9 @@ namespace StreamAIS
 
         static async Task Main(string[] args)
         {
-            string url = System.Configuration.ConfigurationManager.AppSettings["ApiUrl"]!;
-            
+            string aisUrl = System.Configuration.ConfigurationManager.AppSettings["ApiUrl"]!;
+            string targetUrl = System.Configuration.ConfigurationManager.AppSettings["GrpcTargetUrl"]!;
+
             var producerConsumerChannel = Channel.CreateBounded<MessageKitDto>(new BoundedChannelOptions(1000)
             {
                 FullMode = BoundedChannelFullMode.DropOldest,
@@ -36,71 +41,78 @@ namespace StreamAIS
             });
 
             int count = 0;
+
+            ClientWebSocket cws = new ClientWebSocket();
+            await cws.ConnectAsync(new Uri(aisUrl), CancellationToken.None);
+            Console.WriteLine("connected");
+
+            byte[] subscriptionBytes = GetSubscriptionMessageBytes();
+
+            await cws.SendAsync(subscriptionBytes, WebSocketMessageType.Text, true, CancellationToken.None);
+
+            WebSocketCloseStatus futureCloseStatus = WebSocketCloseStatus.NormalClosure;
+            string? explMessage = null;
+
+            GrpcChannel grpcChannel = GrpcChannel.ForAddress(targetUrl);
+            AisSender.AisSenderClient senderClient = new AisSender.AisSenderClient(grpcChannel);
             
-            using (ClientWebSocket cws = new ClientWebSocket())
+            AsyncClientStreamingCall<AISResult, Empty> streamingCall = senderClient.SendMessages();
+
+            Task consumerTask = Task.Run(() => StartConsumingLoop(producerConsumerChannel, streamingCall));
+            try
             {
-                await cws.ConnectAsync(new Uri(url), CancellationToken.None);
-                Console.WriteLine("connected");
-
-                byte[] subscriptionBytes = GetSubscriptionMessageBytes();
-
-                await cws.SendAsync(subscriptionBytes, WebSocketMessageType.Text, true, CancellationToken.None);
-
-                WebSocketCloseStatus futureCloseStatus = WebSocketCloseStatus.NormalClosure;
-                string? explMessage = null;
-                
-                Task consumerTask = Task.Run(() => StartConsumingLoop(producerConsumerChannel));
-                try
+                while (cws.State == WebSocketState.Open)
                 {
-                    while (cws.State == WebSocketState.Open)
+                    byte[] prevMsgBuffer = ArrayPool<byte>.Shared.Rent(BufferSize);
+                    byte[] crtBuffer = ArrayPool<byte>.Shared.Rent(BufferSize);
+                    byte[] messageTypeBuffer = ArrayPool<byte>.Shared.Rent(maxTypeLength);
+
+                    WebSocketReceiveResult result = await cws.ReceiveAsync(crtBuffer, CancellationToken.None);
+
+                    if (result.MessageType == WebSocketMessageType.Close)
                     {
-                        byte[] prevMsgBuffer = ArrayPool<byte>.Shared.Rent(BufferSize);
-                        byte[] crtBuffer = ArrayPool<byte>.Shared.Rent(BufferSize);
-                        byte[] messageTypeBuffer = ArrayPool<byte>.Shared.Rent(maxTypeLength);
-
-                        WebSocketReceiveResult result = await cws.ReceiveAsync(crtBuffer, CancellationToken.None);
-
-                        if (result.MessageType == WebSocketMessageType.Close)
-                        {
-                            ArrayPool<byte>.Shared.Return(prevMsgBuffer);
-                            ArrayPool<byte>.Shared.Return(crtBuffer);
-                            ArrayPool<byte>.Shared.Return(messageTypeBuffer);
-                            break;
-                        }
-
-                        if (!result.EndOfMessage)
-                        {
-                            Array.Copy(crtBuffer, 0, prevMsgBuffer, count, result.Count);
-                            count += result.Count;
-                            continue;
-                        }
-
-                        Array.Fill<byte>(prevMsgBuffer, 0, result.Count, BufferSize - result.Count);
-                        Array.Copy(crtBuffer, prevMsgBuffer, result.Count);
-                        count = result.Count;
-
-                        await producerConsumerChannel.Writer.WriteAsync(new MessageKitDto(prevMsgBuffer, messageTypeBuffer, count));
-
+                        ArrayPool<byte>.Shared.Return(prevMsgBuffer);
                         ArrayPool<byte>.Shared.Return(crtBuffer);
+                        ArrayPool<byte>.Shared.Return(messageTypeBuffer);
+                        break;
                     }
-                }
-                catch (Exception ex)
-                {
-                    futureCloseStatus = WebSocketCloseStatus.InternalServerError;
-                    explMessage = ex.GetType().Name;
-                    Console.WriteLine($"Closing because of exception!!! {ex.Message}");
-                }
-                finally
-                {
-                    if (cws.State != WebSocketState.Aborted)
-                    {
-                        await cws.CloseAsync(futureCloseStatus, explMessage, CancellationToken.None);
-                    }
-                    producerConsumerChannel.Writer.Complete();
-                }
 
-                await consumerTask;          
+                    if (!result.EndOfMessage)
+                    {
+                        Array.Copy(crtBuffer, 0, prevMsgBuffer, count, result.Count);
+                        count += result.Count;
+                        continue;
+                    }
+
+                    Array.Fill<byte>(prevMsgBuffer, 0, result.Count, BufferSize - result.Count);
+                    Array.Copy(crtBuffer, prevMsgBuffer, result.Count);
+                    count = result.Count;
+
+                    await producerConsumerChannel.Writer.WriteAsync(new MessageKitDto(prevMsgBuffer, messageTypeBuffer, count));
+
+                    ArrayPool<byte>.Shared.Return(crtBuffer);
+                }
             }
+            catch (Exception ex)
+            {
+                futureCloseStatus = WebSocketCloseStatus.InternalServerError;
+                explMessage = ex.GetType().Name;
+                Console.WriteLine($"Closing because of exception!!! {ex.Message}");
+            }
+            finally
+            {
+                if (cws.State != WebSocketState.Aborted)
+                {
+                    await cws.CloseAsync(futureCloseStatus, explMessage, CancellationToken.None);
+                }
+                producerConsumerChannel.Writer.Complete();
+            }
+
+            await consumerTask;
+
+            cws.Dispose();
+            streamingCall.Dispose();
+            grpcChannel.Dispose();
         }
 
         static private byte[] GetSubscriptionMessageBytes()
@@ -146,13 +158,31 @@ namespace StreamAIS
             return Encoding.UTF8.GetBytes(messageJson);
         }
 
-        private static async Task StartConsumingLoop(Channel<MessageKitDto> messageChannel)
+        private static async Task StartConsumingLoop(Channel<MessageKitDto> messageChannel, AsyncClientStreamingCall<AISResult, Empty> grpcStreamer)
         {
             await foreach (MessageKitDto msg in messageChannel.Reader.ReadAllAsync())
             {
                 try
                 {
-                    ProcessMessageBytes(msg.MessageBuffer, msg.TypeBuffer, msg.BytesCount);
+                    AISResult? aisRes = ProcessMessageBytes(msg.MessageBuffer, msg.TypeBuffer, msg.BytesCount);
+                    if (aisRes == null)
+                    {
+                        continue;
+                    }
+                    await grpcStreamer.RequestStream.WriteAsync(aisRes);
+                    Console.WriteLine("Successful GRPC sent ");
+                    if (aisRes.Position != null)
+                    {
+                        Console.WriteLine($"position {aisRes.Position.Latitude}, {aisRes.Position.Longitude}");
+                    }
+                    else if (aisRes.ShipData != null)
+                    {
+                        Console.WriteLine($"some data for ship IMO{aisRes.ShipData.IMONumber} {aisRes.ShipData.Name}");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"safety message: {aisRes.Safety.Text}");
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -166,7 +196,7 @@ namespace StreamAIS
             }
         }
 
-        private static void ProcessMessageBytes(byte[] message, byte[] bufferForType, int bytesCount)
+        private static AISResult? ProcessMessageBytes(byte[] message, byte[] bufferForType, int bytesCount)
         {
             int crtMsgTypeLength = 0;
 
@@ -185,34 +215,53 @@ namespace StreamAIS
             switch (currentMsgType)
             {
                 case shipDataStr:
-                    AisMessageWrapper<ShipDataMessage> shipMessage 
+                    AisMessageWrapper<ShipDataMessage> shipMessageFromJson 
                         = JsonSerializer.Deserialize(message.AsSpan(0, bytesCount),
                                                      AisJsonSerializationContext.Default.AisMessageWrapperShipDataMessage)!;
-                    Console.WriteLine(shipMessage.Message);
-                    break;
+                    
+                    AISResult shipResult = new AISResult() { ShipData = shipMessageFromJson.Message.ToProto() };
+                    shipMessageFromJson.Message.ShipStaticData.MapOntoProto(shipResult);
+                    return shipResult;
+                    //break;
                 case staticDataStr:
-                    AisMessageWrapper<StaticDataMessage> staticMessage 
+                    AisMessageWrapper<StaticDataMessage> staticMessageFromJson 
                         = JsonSerializer.Deserialize(message.AsSpan(0, bytesCount),
                                                      AisJsonSerializationContext.Default.AisMessageWrapperStaticDataMessage)!;
-                    Console.WriteLine(staticMessage.Message);
-                    break;
+
+                    AISResult staticResult = new AISResult() { ShipData = staticMessageFromJson.Message.ToProto() };
+                    staticMessageFromJson.Message.StaticDataReport.MapOntoProto(staticResult);
+                    return staticResult;
+                    //break;
                 case safeBroadcastStr or safeAddrStr:
-                    AisMessageWrapper<SafetyRelatedMessage> broadcast
+                    AisMessageWrapper<SafetyRelatedMessage> safetyMessageFromJson
                         = JsonSerializer.Deserialize(message.AsSpan(0, bytesCount),
                                  AisJsonSerializationContext.Default.AisMessageWrapperSafetyRelatedMessage)!;
-                    Console.WriteLine(broadcast.Message);
-                    break;
+
+                    AISResult safetyResult = new AISResult() { Safety = safetyMessageFromJson.Message.ToProto() };
+                    safetyMessageFromJson.Message.ActualSafetyMessage.MapOntoProto(safetyResult);
+                    return safetyResult;
+                    //break;
                 default:
                     if (currentMsgType.Substring(currentMsgType.Length - positionReportStr.Length, positionReportStr.Length) == positionReportStr)
                     {
-                        AisMessageWrapper<PositionMessage> reportMessage 
+                        AisMessageWrapper<PositionMessage> positionFromJson 
                             = JsonSerializer.Deserialize(message.AsSpan(0, bytesCount),
                                                          AisJsonSerializationContext.Default.AisMessageWrapperPositionMessage)!;
-                        Console.WriteLine(reportMessage.Message);
-                        break;
+
+                        AISResult positionResult = new AISResult() { Position = positionFromJson.Message.ToProto() };
+
+                        if (positionResult.Position.ClassB)
+                        {
+                            positionFromJson.Message.StandardClassBPositionReport!.MapOntoProto(positionResult);
+                        }
+                        else {
+                            positionFromJson.Message.PositionReport!.MapOntoProto(positionResult);
+                        }
+                        return positionResult;
                     }
                     break;
             }
+            return null;
         }
     }
 }
