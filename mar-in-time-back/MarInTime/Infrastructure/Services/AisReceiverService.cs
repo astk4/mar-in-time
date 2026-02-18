@@ -1,36 +1,45 @@
 ﻿using AisCommunication.Shared;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
+using MarInTime.Infrastructure.TransportModels;
+using MessagePack;
 using Microsoft.AspNetCore.Connections;
-using Microsoft.AspNetCore.SignalR;
+using StackExchange.Redis;
 using System.Diagnostics;
 
 namespace MarInTime.Infrastructure.Services
 {
-    public class AisReceiverService(IHubContext<AisResultHub> hubContext) : AisSender.AisSenderBase
+    public class AisReceiverService : AisSender.AisSenderBase
     {
+        private readonly StackExchange.Redis.IDatabase redisDb;
+        public AisReceiverService(IConnectionMultiplexer redisMultiplexer) => redisDb = redisMultiplexer.GetDatabase();
+
         public override async Task<Empty> SendMessages(IAsyncStreamReader<AISResult> requestStream, ServerCallContext context)
         {
             try
             {
                 await foreach (AISResult message in requestStream.ReadAllAsync(context.CancellationToken))
                 {
-                    Console.Write("GRPC received ");
                     if (message.Position != null)
                     {
-                        Console.WriteLine($"position {message.Position.Latitude}, {message.Position.Longitude}");
+                        ShipPositionCheckpoint checkpoint = new ShipPositionCheckpoint()
+                        {
+                            MMSI = message.UserMMSI,
+                            Longitude = message.Position.Longitude, 
+                            Latitude = message.Position.Latitude,
+                        };
+
+                        byte[] checkpointData = MessagePackSerializer.Serialize(checkpoint);
+
+                        await redisDb.HashSetAsync(ShipPositionCheckpoint.HashKey, message.UserMMSI, checkpointData);
                     }
                     else if (message.ShipData != null)
                     {
-                        Console.WriteLine($"some data for ship IMO{message.ShipData.IMONumber} {message.ShipData.Name}");
-
-                        await hubContext.Clients.All.SendAsync(AisResultHub.receiveShipData,
-                                                                 message.ShipData.IMONumber,
-                                                                 message.ShipData.Name);
+                        Console.WriteLine($"GRPC received some data for ship IMO{message.ShipData.IMONumber} {message.ShipData.Name}");
                     }
                     else
                     {
-                        Console.WriteLine($"safety message: {message.Safety.Text}");
+                        Console.WriteLine($"GRPC received safety message: {message.Safety.Text}");
                     }
                 }
             }

@@ -1,6 +1,7 @@
 import { portPopupTemplate } from "./popup_exports.js";
 import { fetchGet } from "./vanilla-api-service.js";
 import  * as spatialOptimization from "./spatial_optimization.js";
+import { initMarkerLayer } from "./ship_markers.js";
 
 var basicMap;
 var eezLayer;
@@ -82,6 +83,8 @@ export function initMainMap() {
             weight: spatialOptimization.selectOutlineThickness(prevZoomLevel)
         }
     }).addTo(basicMap);
+
+    initMarkerLayer(basicMap);
 
     myOnMove();
 }

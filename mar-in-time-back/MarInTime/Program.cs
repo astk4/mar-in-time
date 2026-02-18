@@ -9,6 +9,7 @@ using System.Text.Json.Serialization;
 using StackExchange.Redis;
 using MarInTime.Domain.DTOs;
 using MarInTime.Domain.Entities;
+using MarInTime.Presentation;
 
 namespace MarInTime
 {
@@ -30,6 +31,7 @@ namespace MarInTime
             builder.Services.AddTransient<IGisStreamRepository, EconomicZoneRepository>();
             builder.Services.AddTransient<ISpatialRepository<ExclusiveEconomicZone>, EconomicZoneRepository>();
             builder.Services.AddScoped<IGisService<EconomicZoneDto>, EezService>();
+            builder.Services.AddHostedService<AisBufferingBackgroundService>();
 
             string redisHost = builder.Configuration["Redis:Host"]!,
                    redisPort = builder.Configuration["Redis:Port"]!;
@@ -74,7 +76,8 @@ namespace MarInTime
             });
 
             builder.Services.AddGrpc();
-            builder.Services.AddSignalR();
+            builder.Services.AddSignalR()
+                            .AddMessagePackProtocol();
 
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
