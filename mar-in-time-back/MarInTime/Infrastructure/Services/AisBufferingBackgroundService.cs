@@ -1,11 +1,8 @@
-﻿using MarInTime.Application.Services;
-using MarInTime.Infrastructure.TransportModels;
+﻿using MarInTime.Infrastructure.TransportModels;
 using MarInTime.Presentation;
-using MarInTime.Presentation.ViewModels;
 using MessagePack;
 using Microsoft.AspNetCore.SignalR;
 using StackExchange.Redis;
-using System.Diagnostics;
 
 namespace MarInTime.Infrastructure.Services
 {
@@ -28,14 +25,21 @@ namespace MarInTime.Infrastructure.Services
             {
                 while(!stoppingToken.IsCancellationRequested && await timer.WaitForNextTickAsync())
                 {
-                    HashEntry[] allEntries = redisDb.HashGetAll(ShipPositionCheckpoint.HashKey);
+                    HashEntry[] typeEntries = redisDb.HashGetAll(ShipAppearanceCheckpointDto.HashKey);
+                    
+                    ShipAppearanceCheckpointDto[] colorsHere
+                        = typeEntries.Select(entry => MessagePackSerializer.Deserialize<ShipAppearanceCheckpointDto>(entry.Value))
+                                     .ToArray();
+                    await trafficResultHubContext.Clients.All.SendAsync(AisResultHub.ReceiveShipDataKey, colorsHere, stoppingToken);
 
-                    ShipPositionCheckpoint[] shipMarkers 
-                        = allEntries.Select(entry => MessagePackSerializer.Deserialize<ShipPositionCheckpoint>(entry.Value))
+
+                    HashEntry[] posEntries = redisDb.HashGetAll(ShipPositionCheckpoint.HashKey);
+
+                    ShipPositionCheckpoint[] shipMarkers
+                        = posEntries.Select(entry => MessagePackSerializer.Deserialize<ShipPositionCheckpoint>(entry.Value))
                                     .ToArray();
-                    await trafficResultHubContext.Clients.All.SendAsync(AisResultHub.ReceiveShipPosKey, shipMarkers);
 
-                    Debug.WriteLine($"Sending out {allEntries.Length} entries");
+                    await trafficResultHubContext.Clients.All.SendAsync(AisResultHub.ReceiveShipPosKey, shipMarkers, stoppingToken);
                 }
             }
         }

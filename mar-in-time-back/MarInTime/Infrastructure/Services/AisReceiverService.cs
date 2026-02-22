@@ -35,7 +35,16 @@ namespace MarInTime.Infrastructure.Services
                     }
                     else if (message.ShipData != null)
                     {
-                        Console.WriteLine($"GRPC received some data for ship IMO{message.ShipData.IMONumber} {message.ShipData.Name}");
+                        if (message.ShipData.ShipType == 0) { continue; } //no ship type available
+
+                        ShipAppearanceCheckpointDto data = new ShipAppearanceCheckpointDto()
+                        {
+                            MMSI = message.UserMMSI,
+                            TypeId = (int)ShipAppearanceCheckpointDto.GetTypeForNumber(message.ShipData.ShipType),
+                        };
+                        byte[] dataInBytes = MessagePackSerializer.Serialize(data);
+
+                        await redisDb.HashSetAsync(ShipAppearanceCheckpointDto.HashKey, message.UserMMSI, dataInBytes);
                     }
                     else
                     {

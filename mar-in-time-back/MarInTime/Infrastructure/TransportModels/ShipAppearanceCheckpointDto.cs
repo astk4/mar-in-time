@@ -1,0 +1,90 @@
+﻿using MessagePack;
+
+namespace MarInTime.Infrastructure.TransportModels
+{
+    [MessagePackObject]
+    public class ShipAppearanceCheckpointDto
+    {
+        public const string HashKey = "ships_type";
+
+        [Key(0)]
+        public int MMSI { get; set; }
+
+        [Key(1)]
+        public int TypeId { get; set; }
+
+        public static ShipType GetTypeForNumber(int aisNum)
+        {
+            switch (aisNum)
+            {
+                case 30:
+                    return ShipType.Fishing;
+
+                case 33:
+                    return ShipType.Dredging;
+                case 34:
+                    return ShipType.Diving;
+                case 35:
+                    return ShipType.Military;
+                case 36:
+                    return ShipType.Sail;
+                case 37:
+                    return ShipType.Pleasure;
+
+                case 50:
+                    return ShipType.Pilot;
+                case 51:
+                    return ShipType.SearchRescue;
+                case 52:
+                    return ShipType.Tug;
+                case 53:
+                    return ShipType.PortTender;
+                case 54:
+                    return ShipType.AntiPollution;
+                case 55:
+                    return ShipType.Law;
+
+                case 58:
+                    return ShipType.Medical;
+                case 59:
+                    return ShipType.RR18;
+            }
+
+            if (aisNum <= 19 || aisNum >= 38 && aisNum <= 39)
+            {
+                return ShipType.Other;
+            }
+
+            if (aisNum <= 29)
+            {
+                return ShipType.WIG;
+            }
+            if (aisNum <= 32)
+            {
+                return ShipType.Towing;
+            }
+            if (aisNum <= 49)
+            {
+                return ShipType.HSC;
+            }
+            if (aisNum <= 57)
+            {
+                return ShipType.Local;
+            }
+            if (aisNum <= 69)
+            {
+                return ShipType.Passenger;
+            }
+            if (aisNum <= 79)
+            {
+                return ShipType.Cargo;
+            }
+            if (aisNum <= 89)
+            {
+                return ShipType.Tanker;
+            }
+
+            return ShipType.Other;
+        }
+    }
+}
