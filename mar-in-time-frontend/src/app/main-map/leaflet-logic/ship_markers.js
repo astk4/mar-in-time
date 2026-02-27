@@ -30,6 +30,8 @@ let shipTypesColors = [
 let defaultColor = {r: 0.5, g: 0.5, b: 0.5};
 
 var mapRef;
+var markerSize = 6;
+var markerOpacity = 0.5;
 let pointsCollection = null;
 
 let ww = new Worker(new URL('./web-workers/ship_markers_webworker.js', import.meta.url));
@@ -53,22 +55,48 @@ export function onTypesArrived(arrayOfTypeIds) {
   ww.postMessage({ hasCoords: false, arrivedTypes: arrayOfTypeIds });
 }
 
+export function onZoomForMarkersChanged(zoom) {
+  if (zoom < 4) {
+    markerSize = 6;
+    markerOpacity = 0.5;
+    return;
+  }
+  if (zoom < 6) {
+    markerSize = 8;
+    markerOpacity = 0.7;
+    return;
+  }
+  
+  markerOpacity = (zoom < 11)? 0.9 : 1;
+
+  if (zoom < 11) {
+    markerSize = 10;
+    return;
+  }
+  if (zoom < 15) {
+    markerSize = 12;
+    return;
+  }
+  if (zoom < 17) {
+    markerSize = 15;
+    return;
+  }
+  markerSize = 18;
+}
+
 function refillMarkers(geojson) {
 
-  var data = {
+  pointsCollection?.remove();
+  
+  pointsCollection = L.glify.points({
     map: mapRef,
     data: geojson,
     interactive: false,
-    size: 10,
+    size: markerSize,
     color: (index, ship) => {
-      return shipTypesColors[ship.properties.typeId] || defaultColor;
+      var colorObj = shipTypesColors[ship.properties.typeId] || defaultColor;
+      colorObj.a = markerOpacity;
+      return colorObj;
     }
-  };
-
-  if (pointsCollection == null) {
-    pointsCollection = L.glify.points(data);
-  }
-  else {
-    pointsCollection.update(data);
-  }
+  });
 }

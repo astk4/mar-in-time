@@ -1,7 +1,7 @@
 import { portPopupTemplate } from "./popup_exports.js";
 import { fetchGet } from "./vanilla-api-service.js";
 import  * as spatialOptimization from "./spatial_optimization.js";
-import { initMarkerLayer } from "./ship_markers.js";
+import { initMarkerLayer, onZoomForMarkersChanged } from "./ship_markers.js";
 
 var basicMap;
 var eezLayer;
@@ -27,6 +27,7 @@ async function myOnMove()
 async function myOnZoom() 
 {
   let zoomNow = basicMap.getZoom();
+  onZoomForMarkersChanged(zoomNow);
 
   console.log("zoom level:", zoomNow);
   const bbox = boundsToObject(basicMap.getBounds());
