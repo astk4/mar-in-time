@@ -41,18 +41,13 @@ export function initMarkerLayer(map) {
   mapRef = map;
 
   ww.onmessage = function (e) {
-    refillMarkers(e.data.result);
+    refillMarkers(e.data);
   }
 }
 
-export function onCoordsArrived(arrayOfPointArrays) {
-  //0 - MMSI, 1 - lng, 2 - lat
-  ww.postMessage({ hasCoords: true, arrivedCoords: arrayOfPointArrays });
-}
+export function onShipPointsArrived(pointsWithTypes) {
 
-export function onTypesArrived(arrayOfTypeIds) {
-  //0 - MMSI, 1 - lng, 2 - lat
-  ww.postMessage({ hasCoords: false, arrivedTypes: arrayOfTypeIds });
+  ww.postMessage(pointsWithTypes);
 }
 
 export function onZoomForMarkersChanged(zoom) {

@@ -22,29 +22,22 @@ namespace MarInTime.Infrastructure.Services
                 {
                     if (message.Position != null)
                     {
-                        ShipPositionCheckpoint checkpoint = new ShipPositionCheckpoint()
-                        {
-                            MMSI = message.UserMMSI,
-                            Longitude = message.Position.Longitude, 
-                            Latitude = message.Position.Latitude,
-                        };
+                        await redisDb.HashSetAsync(ShipCheckpointDto.HashKey,
+                                                   $"{message.UserMMSI}:{ShipCheckpointDto.LatitudeHashField}", 
+                                                   message.Position.Latitude);
 
-                        byte[] checkpointData = MessagePackSerializer.Serialize(checkpoint);
-
-                        await redisDb.HashSetAsync(ShipPositionCheckpoint.HashKey, message.UserMMSI, checkpointData);
+                        await redisDb.HashSetAsync(ShipCheckpointDto.HashKey,
+                                                   $"{message.UserMMSI}:{ShipCheckpointDto.LongitudeHashField}", 
+                                                   message.Position.Longitude);
                     }
                     else if (message.ShipData != null)
                     {
                         if (message.ShipData.ShipType == 0) { continue; } //no ship type available
 
-                        ShipAppearanceCheckpointDto data = new ShipAppearanceCheckpointDto()
-                        {
-                            MMSI = message.UserMMSI,
-                            TypeId = (int)ShipAppearanceCheckpointDto.GetTypeForNumber(message.ShipData.ShipType),
-                        };
-                        byte[] dataInBytes = MessagePackSerializer.Serialize(data);
+                        int typeId = (int)ShipCheckpointDto.GetTypeForNumber(message.ShipData.ShipType);
 
-                        await redisDb.HashSetAsync(ShipAppearanceCheckpointDto.HashKey, message.UserMMSI, dataInBytes);
+                        await redisDb.HashSetAsync(ShipCheckpointDto.HashKey,
+                                                   $"{message.UserMMSI}:{ShipCheckpointDto.TypeHashField}", typeId);
                     }
                     else
                     {

@@ -3,15 +3,23 @@
 namespace MarInTime.Infrastructure.TransportModels
 {
     [MessagePackObject]
-    public class ShipAppearanceCheckpointDto
+    public class ShipCheckpointDto
     {
-        public const string HashKey = "ships_type";
+        public const string HashKey = "ships_data",
+                    LatitudeHashField = "lat",
+                    LongitudeHashField = "long",
+                    TypeHashField = "type";
 
         [Key(0)]
         public int MMSI { get; set; }
 
         [Key(1)]
-        public int TypeId { get; set; }
+        public double Latitude { get; set; }
+        [Key(2)]
+        public double Longitude { get; set; }
+
+        [Key(3)]
+        public int TypeId { get; set; } = 21; //= ship type other
 
         public static ShipType GetTypeForNumber(int aisNum)
         {

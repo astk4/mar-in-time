@@ -1,4 +1,4 @@
-import { onCoordsArrived, onTypesArrived } from "./leaflet-logic/ship_markers";
+import { onShipPointsArrived } from "./leaflet-logic/ship_markers";
 import { MessagePackHubProtocol } from "@microsoft/signalr-protocol-msgpack";
 
 var hubConnection;
@@ -9,12 +9,8 @@ export function initSignalR() {
                                .withHubProtocol(new MessagePackHubProtocol())
                                .build(); 
 
-    hubConnection.on("ShipPositions", function (args) {
-        onCoordsArrived(args);
-    });
-
-    hubConnection.on("ShipData", function (args) {
-        onTypesArrived(args);
+    hubConnection.on("ShipCheckpoints", function (args) {
+        onShipPointsArrived(args);
     });
 
     hubConnection.start();

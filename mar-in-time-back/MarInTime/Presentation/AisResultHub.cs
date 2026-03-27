@@ -6,7 +6,6 @@ namespace MarInTime.Presentation
 {
     public class AisResultHub : Hub
     {
-        public const string ReceiveShipPosKey = "ShipPositions",
-                            ReceiveShipDataKey = "ShipData";
+        public const string ReceiveShipCheckpointsKey = "ShipCheckpoints";
     }
 }

@@ -1,14 +1,4 @@
-let mmsiShipTypeMap = new Map();
-
-function findColor(mmsi) {
-  var shipType = mmsiShipTypeMap.get(mmsi);
-  if (shipType === undefined) {
-    return defaultColor;
-  }
-  return shipTypesColors[shipType] || defaultColor;
-}
-
-function makeGeoJsonPoint(individualArray, typeId) {
+function makeGeoJsonPoint(individualArray) {
   return {
       "type": "Feature",
       "geometry": {
@@ -20,29 +10,29 @@ function makeGeoJsonPoint(individualArray, typeId) {
       },
       "properties": {
         "mmsi": individualArray[0],
-        "typeId": typeId,
+        "typeId": individualArray[3],
       }
     };
 }
 
 function arrayToGeoJsonFeatureCollection(arrayOfPointArrays) {
+ 
+  let validFeatures = arrayOfPointArrays.reduce((acc, crt) => {
+    if (Math.abs(crt[1]) > Number.EPSILON && Math.abs(crt[2]) > Number.EPSILON) {
+      acc.push(makeGeoJsonPoint(crt));
+    }
+    return acc;
+  }, []);
+  
   return {
     "type": "FeatureCollection",
-    "features": arrayOfPointArrays.map(arr => makeGeoJsonPoint(arr, mmsiShipTypeMap.get(arr[0]) || 21))
+    "features": validFeatures
   };
 }
 
 onmessage = function (e) {
-    if (e.data.hasCoords) {
-      let messageObj = {
-          result: arrayToGeoJsonFeatureCollection(e.data.arrivedCoords)
-      }
-      postMessage(messageObj);
-      return;
-    }
-
-    for (let arr of e.data.arrivedTypes) {
-        mmsiShipTypeMap.set(arr[0], arr[1]);
-    }
+    if (e.data === undefined) {  return; }
+    
+    postMessage(arrayToGeoJsonFeatureCollection(e.data));
 }
 
