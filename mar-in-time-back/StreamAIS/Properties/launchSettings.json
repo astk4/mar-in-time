@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "StreamAIS": {
+      "commandName": "Project",
+      "commandLineArgs": "AIS_history.txt"
+    }
+  }
+}

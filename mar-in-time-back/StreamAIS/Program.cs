@@ -58,7 +58,10 @@ namespace StreamAIS
             
             AsyncClientStreamingCall<AISResult, Empty> streamingCall = senderClient.SendMessages();
 
-            Task consumerTask = Task.Run(() => StartConsumingLoop(producerConsumerChannel, streamingCall));
+            FileStream historyFileStream = new FileStream(args[0], FileMode.Append, FileAccess.Write);
+            StreamWriter historySw = new StreamWriter(historyFileStream);
+
+            Task consumerTask = Task.Run(() => StartConsumingLoop(producerConsumerChannel, streamingCall, historySw));
             try
             {
                 while (cws.State == WebSocketState.Open)
@@ -113,6 +116,12 @@ namespace StreamAIS
             cws.Dispose();
             streamingCall.Dispose();
             grpcChannel.Dispose();
+
+            historySw.Close();
+            historyFileStream.Close();
+
+            await historySw.DisposeAsync();
+            await historyFileStream.DisposeAsync();
         }
 
         static private byte[] GetSubscriptionMessageBytes()
@@ -158,7 +167,7 @@ namespace StreamAIS
             return Encoding.UTF8.GetBytes(messageJson);
         }
 
-        private static async Task StartConsumingLoop(Channel<MessageKitDto> messageChannel, AsyncClientStreamingCall<AISResult, Empty> grpcStreamer)
+        private static async Task StartConsumingLoop(Channel<MessageKitDto> messageChannel, AsyncClientStreamingCall<AISResult, Empty> grpcStreamer, StreamWriter sw)
         {
             await foreach (MessageKitDto msg in messageChannel.Reader.ReadAllAsync())
             {
@@ -190,6 +199,8 @@ namespace StreamAIS
                 }
                 finally
                 {
+                    await sw.WriteLineAsync(Encoding.UTF8.GetString(msg.MessageBuffer.AsSpan(0, msg.BytesCount)));
+
                     ArrayPool<byte>.Shared.Return(msg.MessageBuffer, true);
                     ArrayPool<byte>.Shared.Return(msg.TypeBuffer, true);
                 }

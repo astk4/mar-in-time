@@ -8,7 +8,8 @@ namespace MarInTime.Infrastructure.TransportModels
         public const string HashKey = "ships_data",
                     LatitudeHashField = "lat",
                     LongitudeHashField = "long",
-                    TypeHashField = "type";
+                    TypeHashField = "type",
+                    CourseHashField = "course";
 
         [Key(0)]
         public int MMSI { get; set; }
@@ -20,6 +21,9 @@ namespace MarInTime.Infrastructure.TransportModels
 
         [Key(3)]
         public int TypeId { get; set; } = 21; //= ship type other
+
+        [Key(4)]
+        public double Course { get; set; } = 360; //unavailable by default
 
         public static ShipType GetTypeForNumber(int aisNum)
         {

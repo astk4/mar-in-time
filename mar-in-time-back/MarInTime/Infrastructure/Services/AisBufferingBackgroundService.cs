@@ -70,6 +70,10 @@ namespace MarInTime.Infrastructure.Services
 
                                 ship.TypeId = (int)entry.Value;
                                 break;
+                            case ShipCheckpointDto.CourseHashField:
+                                
+                                ship.Course = (double)entry.Value;
+                                break;
                             default:
                                 break;
                         }
