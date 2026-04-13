@@ -32,7 +32,9 @@ let defaultColor = {r: 0.5, g: 0.5, b: 0.5};
 var mapRef;
 var markerSize = 6;
 var markerOpacity = 0.5;
+
 let pointsCollection = null;
+let shapesCollection = null;
 
 let ww = new Worker(new URL('./web-workers/ship_markers_webworker.js', import.meta.url));
 
@@ -79,19 +81,28 @@ export function onZoomForMarkersChanged(zoom) {
   markerSize = 18;
 }
 
-function refillMarkers(geojson) {
+function refillMarkers(geojsonObj) {
 
   pointsCollection?.remove();
+  shapesCollection?.remove();
   
   pointsCollection = L.glify.points({
     map: mapRef,
-    data: geojson,
+    data: geojsonObj.points,
     interactive: false,
     size: markerSize,
-    color: (index, ship) => {
-      var colorObj = shipTypesColors[ship.properties.typeId] || defaultColor;
-      colorObj.a = markerOpacity;
-      return colorObj;
-    }
+    color: getShipTypeColor
   });
+
+  shapesCollection = L.glify.shapes({
+    map: mapRef,
+    data: geojsonObj.shapes,
+    color: getShipTypeColor
+  });
+}
+
+function getShipTypeColor(index, ship) {
+  var colorObj = shipTypesColors[ship.properties.typeId] || defaultColor;
+  colorObj.a = markerOpacity;
+  return colorObj;
 }
