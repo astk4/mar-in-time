@@ -42,6 +42,9 @@ let ww = new Worker(new URL('./web-workers/ship_markers_webworker.js', import.me
 export function initMarkerLayer(map) {
   mapRef = map;
 
+  var bounds = map.getBounds();
+  ww.postMessage(calculateArrowRadius(bounds.getEast() - bounds.getWest()));
+
   ww.onmessage = function (e) {
     refillMarkers(e.data);
   }
@@ -52,33 +55,51 @@ export function onShipPointsArrived(pointsWithTypes) {
   ww.postMessage(pointsWithTypes);
 }
 
-export function onZoomForMarkersChanged(zoom) {
+export function onZoomForMarkersChanged(zoom, viewportHrzDiff) 
+{
+  markerSize = selectMarkerSize(zoom);
+  markerOpacity = selectMarkerOpacity(zoom);
+
+  ww.postMessage(calculateArrowRadius(Math.abs(viewportHrzDiff)));
+}
+
+function selectMarkerSize(zoom) {
   if (zoom < 4) {
-    markerSize = 6;
-    markerOpacity = 0.5;
-    return;
+    return 6;
   }
   if (zoom < 6) {
-    markerSize = 8;
-    markerOpacity = 0.7;
-    return;
+    return 8;
   }
-  
-  markerOpacity = (zoom < 11)? 0.9 : 1;
-
   if (zoom < 11) {
-    markerSize = 10;
-    return;
+    return 10;
   }
   if (zoom < 15) {
-    markerSize = 12;
-    return;
+    return 12;
   }
   if (zoom < 17) {
-    markerSize = 15;
-    return;
+    return 15;
   }
-  markerSize = 18;
+  return 18;
+}
+
+function selectMarkerOpacity(zoom) {
+  if (zoom < 4) {
+    return 0.5;
+  }
+  if (zoom < 6) {
+    return 0.7;
+  }
+  return (zoom < 11)? 0.9 : 1;
+}
+
+function calculateArrowRadius(viewportW)
+{
+  var screenToMapRatio = window.screen.width / mapRef.getContainer().clientWidth;
+  var vpExtendedWidth = viewportW * screenToMapRatio;
+
+  var degPerPixel = vpExtendedWidth / window.screen.width;
+
+  return markerSize * degPerPixel;
 }
 
 function refillMarkers(geojsonObj) {

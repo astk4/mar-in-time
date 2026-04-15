@@ -27,10 +27,10 @@ async function myOnMove()
 async function myOnZoom() 
 {
   let zoomNow = basicMap.getZoom();
-  onZoomForMarkersChanged(zoomNow);
-
-  console.log("zoom level:", zoomNow);
   const bbox = boundsToObject(basicMap.getBounds());
+
+  onZoomForMarkersChanged(zoomNow, bbox.East-bbox.West);
+  console.log("zoom level:", zoomNow);
   await updateEezLayer(bbox, zoomNow, prevZoomLevel);
 
   prevZoomLevel = zoomNow;

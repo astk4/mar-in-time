@@ -1,4 +1,4 @@
-import { Features } from "tailwindcss";
+var headingMarkerR = 0.15;
 
 function makeGeoJsonPointGeometry(individualArray) {
   return {
@@ -13,7 +13,8 @@ function makeGeoJsonPointGeometry(individualArray) {
 function makeGeoJsonMarkerGeometry(individualArray) {
   return {
         "type": "Polygon",
-        "coordinates": [getMarkerShapeCoordinates(individualArray[1], individualArray[2], individualArray[4], 0.15, 20)]
+        "coordinates": [getMarkerShapeCoordinates(individualArray[1], individualArray[2], 
+                                                  individualArray[4], headingMarkerR, 30)]
   };
 }
 
@@ -58,6 +59,12 @@ function formatFeatureCollection(features) {
 onmessage = function (e) {
     if (e.data === undefined) {  return; }
     
+    if (!Array.isArray(e.data)) 
+    {
+      headingMarkerR = e.data;
+      return;
+    }
+
     let featObj = arrayToGeoJsonFeatures(e.data);
 
     featObj.points = formatFeatureCollection(featObj.points);
