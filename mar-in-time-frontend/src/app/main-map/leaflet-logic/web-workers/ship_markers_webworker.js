@@ -11,10 +11,13 @@ function makeGeoJsonPointGeometry(individualArray) {
 }
 
 function makeGeoJsonMarkerGeometry(individualArray) {
+  
+  var myMarkerSize = Math.cos(toRadians(individualArray[1])) * headingMarkerR;
+
   return {
         "type": "Polygon",
         "coordinates": [getMarkerShapeCoordinates(individualArray[1], individualArray[2], 
-                                                  individualArray[4], headingMarkerR, 30)]
+                                                  individualArray[4], myMarkerSize, 30)]
   };
 }
 
@@ -92,10 +95,10 @@ function getMarkerShapeCoordinates(centerX, centerY, courseDeg, radius, markerWi
   let basePoint2Y = Math.sin(basePoint2Rad) * radius + centerY;
 
   return [
-    [mainPointY, mainPointX],
-    [basePoint1Y, basePoint1X],
-    [basePoint2Y, basePoint2X],
-    [mainPointY, mainPointX]
+    [mainPointY, mainPointX%360],
+    [basePoint1Y, basePoint1X%360],
+    [basePoint2Y, basePoint2X%360],
+    [mainPointY, mainPointX%360]
   ];
 }
 

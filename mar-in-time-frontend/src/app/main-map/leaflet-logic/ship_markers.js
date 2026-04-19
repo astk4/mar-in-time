@@ -99,7 +99,7 @@ function calculateArrowRadius(viewportW)
 
   var degPerPixel = vpExtendedWidth / window.screen.width;
 
-  return markerSize * degPerPixel;
+  return markerSize * degPerPixel * 1.15; // multiply to compensate how thin the arrows are
 }
 
 function refillMarkers(geojsonObj) {
@@ -112,13 +112,15 @@ function refillMarkers(geojsonObj) {
     data: geojsonObj.points,
     interactive: false,
     size: markerSize,
-    color: getShipTypeColor
+    color: getShipTypeColor,
   });
 
   shapesCollection = L.glify.shapes({
     map: mapRef,
     data: geojsonObj.shapes,
-    color: getShipTypeColor
+    color: getShipTypeColor,
+    border: true,
+    borderOpacity: markerOpacity,
   });
 }
 
