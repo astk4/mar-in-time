@@ -1,0 +1,25 @@
+﻿syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+
+import "Protos/position_report.proto";
+import "Protos/ship_data_report.proto";
+import "Protos/safety_message.proto";
+
+option csharp_namespace = "AisCommunication.Shared";
+
+message AISResult {
+
+	int32 userMMSI = 1;
+	bool repeated = 2;
+
+	oneof ReportBody {
+		PositionReport position = 3;
+		ShipDataReport shipData = 4;
+		SafetyMessage safety = 5;
+	}
+}
+
+service AisSender {
+	rpc SendMessages(stream AISResult) returns (google.protobuf.Empty);
+}

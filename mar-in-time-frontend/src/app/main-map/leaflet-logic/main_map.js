@@ -1,6 +1,7 @@
 import { portPopupTemplate } from "./popup_exports.js";
 import { fetchGet } from "./vanilla-api-service.js";
 import  * as spatialOptimization from "./spatial_optimization.js";
+import { initMarkerLayer, onZoomForMarkersChanged } from "./ship_markers.js";
 
 var basicMap;
 var eezLayer;
@@ -26,9 +27,10 @@ async function myOnMove()
 async function myOnZoom() 
 {
   let zoomNow = basicMap.getZoom();
-
-  console.log("zoom level:", zoomNow);
   const bbox = boundsToObject(basicMap.getBounds());
+
+  onZoomForMarkersChanged(zoomNow, bbox.East-bbox.West);
+  console.log("zoom level:", zoomNow);
   await updateEezLayer(bbox, zoomNow, prevZoomLevel);
 
   prevZoomLevel = zoomNow;
@@ -82,6 +84,8 @@ export function initMainMap() {
             weight: spatialOptimization.selectOutlineThickness(prevZoomLevel)
         }
     }).addTo(basicMap);
+
+    initMarkerLayer(basicMap);
 
     myOnMove();
 }

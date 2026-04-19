@@ -1,0 +1,16 @@
+{
+  "BoundingBox": {
+    "MinLat": -90,
+    "MaxLat": 90,
+    "MinLng": -180,
+    "MaxLng": 180
+  },
+  "MessageTypes": [
+    "SafetyBroadcastMessage",
+    "AddressedSafetyMessage",
+    "PositionReport",
+    "StaticDataReport",
+    "ShipStaticData",
+    "StandardClassBPositionReport"
+  ]
+}

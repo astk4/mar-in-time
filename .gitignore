@@ -496,3 +496,8 @@ appsettings.json
 
 # libraries
 leaflet/
+signalr/
+leaflet-glify/
+
+#sensitive configs
+*.config

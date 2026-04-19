@@ -1,0 +1,21 @@
+﻿syntax = "proto3";
+
+option csharp_namespace = "AisCommunication.Shared";
+
+message PositionReport {
+	
+	double latitude = 2;
+	double longitude = 3;
+	bool positionAccuracy = 4;
+
+	int32 navigationalStatus = 5;
+	sint32 rateOfTurn = 6;
+
+	double cog = 7;
+	double sog = 8;
+	int32 trueHeading = 9;
+
+	int32 timeStopSeconds = 10;
+	int32 specialManeuver = 11;
+	bool classB = 12;
+}
