@@ -18,6 +18,9 @@ namespace MarInTime
         public static void Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
+
+            builder.Configuration.AddJsonFile("secrets.json", true);
+
             builder.Services.AddDbContext<MainDbContext>(options =>
             {
                 options.UseNpgsql(builder.Configuration["Data:Main"],

@@ -15,14 +15,21 @@ namespace MarInTime.Presentation.Controllers
     [Route("spatial")]
     public class SpatialEntitiesController : ControllerBase
     {
+        private const string ExpiryKey = "Redis:ExpiryMinutes:GeoJSON";
+
         private readonly IGisService<EconomicZoneDto> eezService;
         private readonly ILandChecker landChecker;
         private readonly StackExchange.Redis.IDatabase redisDb;
-        public SpatialEntitiesController(IGisService<EconomicZoneDto> eezService, ILandChecker landChecker, IConnectionMultiplexer multiplexer)
+        private readonly IConfiguration configuration;
+        public SpatialEntitiesController(IGisService<EconomicZoneDto> eezService, 
+                                         ILandChecker landChecker, 
+                                         IConnectionMultiplexer multiplexer,
+                                         IConfiguration configuration)
         {
             this.eezService = eezService;
             this.landChecker = landChecker;
             this.redisDb = multiplexer.GetDatabase();
+            this.configuration = configuration;
         }
 
         private async IAsyncEnumerable<object> StreamMapChanges(int zoom, ViewportBoundsViewModel viewModel, RedisValue[] oldChunkIds, HashSet<int> oldChunkIdsMutable, string sessionKey)
@@ -40,7 +47,10 @@ namespace MarInTime.Presentation.Controllers
                 }
                 else
                 {
+                    double minutes = configuration.GetValue<double>(ExpiryKey);
+
                     await redisDb.SetAddAsync(sessionKey, eez.ChunkId.Value);
+                    await redisDb.KeyExpireAsync(sessionKey, TimeSpan.FromMinutes(minutes));
                     Debug.WriteLine($"chunk {eez.ChunkId} is new");
                     yield return eez;
                 }

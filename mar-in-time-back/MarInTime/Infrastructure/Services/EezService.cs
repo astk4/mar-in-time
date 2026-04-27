@@ -1,7 +1,6 @@
 ﻿using MarInTime.Application.Mappers;
 using MarInTime.Application.Repositories;
 using MarInTime.Application.Services;
-using MarInTime.Domain;
 using MarInTime.Domain.DTOs;
 using MarInTime.Domain.Entities;
 using MarInTime.Infrastructure.TransportModels;
