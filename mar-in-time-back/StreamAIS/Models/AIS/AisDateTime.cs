@@ -6,7 +6,7 @@ namespace StreamAIS.Models.AIS
     {
         public byte Minute { get; set; }
         public byte Hour { get; set; }
-        public short Day { get; set; }
+        public byte Day { get; set; }
         public byte Month { get; set; }
 
         public override string ToString()
