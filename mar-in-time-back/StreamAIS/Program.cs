@@ -10,6 +10,9 @@ using System.Text.Json;
 using System.Threading.Channels;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
+using System.Collections.Concurrent;
+using StreamAIS.Wrappers;
+using System.Diagnostics;
 
 namespace StreamAIS
 {
@@ -30,8 +33,14 @@ namespace StreamAIS
 
         static async Task Main(string[] args)
         {
-            string aisUrl = System.Configuration.ConfigurationManager.AppSettings["ApiUrl"]!;
-            string targetUrl = System.Configuration.ConfigurationManager.AppSettings["GrpcTargetUrl"]!;
+            IConfigurationRoot confRoot = new ConfigurationBuilder()
+                                    .SetBasePath(Directory.GetCurrentDirectory())
+                                    .AddJsonFile("appsettings.json")
+                                    .AddJsonFile("secrets.json")
+                                    .Build();
+
+            string aisUrl = confRoot["AIS:ApiUrl"]!;
+            string targetUrl = confRoot["Grpc:TargetUrl"]!;
 
             var producerConsumerChannel = Channel.CreateBounded<MessageKitDto>(new BoundedChannelOptions(1000)
             {
@@ -46,7 +55,7 @@ namespace StreamAIS
             await cws.ConnectAsync(new Uri(aisUrl), CancellationToken.None);
             Console.WriteLine("connected");
 
-            byte[] subscriptionBytes = GetSubscriptionMessageBytes();
+            byte[] subscriptionBytes = GetSubscriptionMessageBytes(confRoot);
 
             await cws.SendAsync(subscriptionBytes, WebSocketMessageType.Text, true, CancellationToken.None);
 
@@ -61,7 +70,14 @@ namespace StreamAIS
             FileStream historyFileStream = new FileStream(args[0], FileMode.Append, FileAccess.Write);
             StreamWriter historySw = new StreamWriter(historyFileStream);
 
-            Task consumerTask = Task.Run(() => StartConsumingLoop(producerConsumerChannel, streamingCall, historySw));
+            double historyIntervalSec = confRoot.GetValue<double>("Clickhouse:BatchIntervalSec");
+            int minBatchSize = confRoot.GetValue<int>("Clickhouse:MinBatchSize");
+            int[] historyQueueCtr = new int[1];
+            ConcurrentQueue<AisMsgHistoryWrapper> wrappersForHistory = new ConcurrentQueue<AisMsgHistoryWrapper>();
+
+            Task grpcConsumerTask = Task.Run(() => GrpcConsumingLoop(producerConsumerChannel, streamingCall, historySw, wrappersForHistory, historyQueueCtr));
+            Task historyConsumerTask = Task.Run(() => HistoryConsumingLoop(wrappersForHistory, TimeSpan.FromSeconds(historyIntervalSec), historyQueueCtr, minBatchSize));
+
             try
             {
                 while (cws.State == WebSocketState.Open)
@@ -111,7 +127,8 @@ namespace StreamAIS
                 producerConsumerChannel.Writer.Complete();
             }
 
-            await consumerTask;
+            await grpcConsumerTask;
+            await historyConsumerTask;
 
             cws.Dispose();
             streamingCall.Dispose();
@@ -124,14 +141,9 @@ namespace StreamAIS
             await historyFileStream.DisposeAsync();
         }
 
-        static private byte[] GetSubscriptionMessageBytes()
-        {
-            IConfigurationRoot confRoot = new ConfigurationBuilder()
-                                                .SetBasePath(Directory.GetCurrentDirectory())
-                                                .AddJsonFile("ais_config.json")
-                                                .Build();
-                                                
-            string apiKey = System.Configuration.ConfigurationManager.AppSettings["ApiKey"]!;
+        static private byte[] GetSubscriptionMessageBytes(IConfigurationRoot confRoot)
+        {                                              
+            string apiKey = confRoot["AIS:ApiKey"]!;
 
             double minLat = Convert.ToDouble(confRoot["BoundingBox:MinLat"]),
                    maxLat = Convert.ToDouble(confRoot["BoundingBox:MaxLat"]),
@@ -167,18 +179,22 @@ namespace StreamAIS
             return Encoding.UTF8.GetBytes(messageJson);
         }
 
-        private static async Task StartConsumingLoop(Channel<MessageKitDto> messageChannel, AsyncClientStreamingCall<AISResult, Empty> grpcStreamer, StreamWriter sw)
+        private static async Task GrpcConsumingLoop(Channel<MessageKitDto> messageChannel, 
+                                                    AsyncClientStreamingCall<AISResult, Empty> grpcStreamer, 
+                                                    StreamWriter sw,
+                                                    ConcurrentQueue<AisMsgHistoryWrapper> queueForHistory,
+                                                    int[] counterContainer)
         {
             await foreach (MessageKitDto msg in messageChannel.Reader.ReadAllAsync())
             {
+                AISResult? aisRes = ProcessMessageBytes(msg.MessageBuffer, msg.TypeBuffer, msg.BytesCount);
+                
+                if (aisRes == null) { continue; }
+
                 try
                 {
-                    AISResult? aisRes = ProcessMessageBytes(msg.MessageBuffer, msg.TypeBuffer, msg.BytesCount);
-                    if (aisRes == null)
-                    {
-                        continue;
-                    }
                     await grpcStreamer.RequestStream.WriteAsync(aisRes);
+
                     Console.WriteLine("Successful GRPC sent ");
                     if (aisRes.Position != null)
                     {
@@ -199,10 +215,36 @@ namespace StreamAIS
                 }
                 finally
                 {
+                    AisMsgHistoryWrapper? histEntry = AisMsgHistoryWrapper.GetInstance(aisRes);
+                    if (histEntry != null)
+                    {
+                        queueForHistory.Enqueue(histEntry);
+                        Interlocked.Increment(ref counterContainer[0]);
+                    }
+
                     await sw.WriteLineAsync(Encoding.UTF8.GetString(msg.MessageBuffer.AsSpan(0, msg.BytesCount)));
 
                     ArrayPool<byte>.Shared.Return(msg.MessageBuffer, true);
                     ArrayPool<byte>.Shared.Return(msg.TypeBuffer, true);
+                }
+            }
+        }
+
+        private static async Task HistoryConsumingLoop(ConcurrentQueue<AisMsgHistoryWrapper> queue, 
+                                                       TimeSpan timerInterval, 
+                                                       int[] counterContainer,
+                                                       int minBatchSize)
+        {
+            using (PeriodicTimer timer = new PeriodicTimer(timerInterval))
+            {
+                while(await timer.WaitForNextTickAsync())
+                {
+                    while (counterContainer[0] < minBatchSize) { /* wait to fill... */ }
+
+                    Debug.WriteLine($"{counterContainer[0]} records in queue");
+                    queue.Clear();
+
+                    Interlocked.Add(ref counterContainer[0], counterContainer[0] * -1);
                 }
             }
         }
