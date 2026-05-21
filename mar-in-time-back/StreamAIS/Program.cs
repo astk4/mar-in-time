@@ -11,7 +11,9 @@ using System.Threading.Channels;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using System.Collections.Concurrent;
-using StreamAIS.Wrappers;
+using System.Net.Security;
+using ClickHouse.Driver;
+using System.Security.Cryptography.X509Certificates;
 using System.Diagnostics;
 
 namespace StreamAIS
@@ -30,6 +32,24 @@ namespace StreamAIS
 
         private static int maxTypeLength = 64;
         private static string currentMsgType = string.Empty;
+
+        private static readonly string[] historyColumns = new string[]
+        {
+            "SessionId", "SessionStartTime", "SessionElapsedMillis",
+            "MMSI", "RepeatIndicator", "AisMessageType",
+            "Position_Lat", "Position_Long", "Position_Accuracy",
+            "Position_NavigationStatus", "Position_RateOfTurn",
+            "Position_CourseOverGround", "Position_SpeedOverGround",
+            "Position_TrueHeading", "Position_Timestamp", 
+            "Position_SpecialManeuverIndicator", "Ship_Name", "Ship_TypeId",
+            "Ship_Dimension_A", "Ship_Dimension_B",
+            "Ship_Dimension_C", "Ship_Dimension_D",
+            "Ship_CallSign", "Ship_IMO", "Ship_ETA_Min",
+            "Ship_ETA_Hour", "Ship_ETA_Day", "Ship_ETA_Month",
+            "Ship_MaxStaticDraught", "Ship_DestinationName",
+            "Ship_VendorIdName", "Ship_VendorIdSerial", "Ship_VendorIdModel",
+            "Safety_Text", "Safety_DestinationID", "Safety_Retransmission"
+        };
 
         static async Task Main(string[] args)
         {
@@ -52,6 +72,19 @@ namespace StreamAIS
             int count = 0;
 
             ClientWebSocket cws = new ClientWebSocket();
+            cws.Options.RemoteCertificateValidationCallback = (sender, certificate, chain, sslErr) =>
+            {
+                if (sslErr == SslPolicyErrors.None) { return true; }
+
+                if (chain != null && sslErr == SslPolicyErrors.RemoteCertificateChainErrors
+                    && chain.ChainStatus.All(e => e.Status == X509ChainStatusFlags.NotTimeValid))
+                {
+                    Debug.WriteLine("ssl expired but i still must connect");
+                    return true;
+                }
+
+                return false;
+            };
             await cws.ConnectAsync(new Uri(aisUrl), CancellationToken.None);
             Console.WriteLine("connected");
 
@@ -67,17 +100,26 @@ namespace StreamAIS
             
             AsyncClientStreamingCall<AISResult, Empty> streamingCall = senderClient.SendMessages();
 
-            FileStream historyFileStream = new FileStream(args[0], FileMode.Append, FileAccess.Write);
-            StreamWriter historySw = new StreamWriter(historyFileStream);
-
             double historyIntervalSec = confRoot.GetValue<double>("Clickhouse:BatchIntervalSec");
             int minBatchSize = confRoot.GetValue<int>("Clickhouse:MinBatchSize");
             int[] historyQueueCtr = new int[1];
-            ConcurrentQueue<AisMsgHistoryWrapper> wrappersForHistory = new ConcurrentQueue<AisMsgHistoryWrapper>();
 
-            Task grpcConsumerTask = Task.Run(() => GrpcConsumingLoop(producerConsumerChannel, streamingCall, historySw, wrappersForHistory, historyQueueCtr));
-            Task historyConsumerTask = Task.Run(() => HistoryConsumingLoop(wrappersForHistory, TimeSpan.FromSeconds(historyIntervalSec), historyQueueCtr, minBatchSize));
+            ClickHouseClient chClient = new ClickHouseClient(confRoot["Clickhouse:ConnectionString"]!);
+            object sesId = await chClient.ExecuteScalarAsync("select * from AIS_SessionsAmount");
 
+            ConcurrentQueue<object[]> wrappersForHistory = new ConcurrentQueue<object[]>();
+
+            Task grpcConsumerTask = Task.Run(() => GrpcConsumingLoop(producerConsumerChannel, 
+                                                                     streamingCall,
+                                                                     wrappersForHistory, 
+                                                                     historyQueueCtr,
+                                                                     sesId == null? 0 : (uint)sesId + 1));
+            Task historyConsumerTask = Task.Run(() => HistoryConsumingLoop(wrappersForHistory,
+                                                                           chClient,
+                                                                           TimeSpan.FromSeconds(historyIntervalSec), 
+                                                                           historyQueueCtr, 
+                                                                           minBatchSize,
+                                                                           historyColumns));
             try
             {
                 while (cws.State == WebSocketState.Open)
@@ -134,11 +176,7 @@ namespace StreamAIS
             streamingCall.Dispose();
             grpcChannel.Dispose();
 
-            historySw.Close();
-            historyFileStream.Close();
-
-            await historySw.DisposeAsync();
-            await historyFileStream.DisposeAsync();
+            chClient.Dispose();
         }
 
         static private byte[] GetSubscriptionMessageBytes(IConfigurationRoot confRoot)
@@ -180,11 +218,13 @@ namespace StreamAIS
         }
 
         private static async Task GrpcConsumingLoop(Channel<MessageKitDto> messageChannel, 
-                                                    AsyncClientStreamingCall<AISResult, Empty> grpcStreamer, 
-                                                    StreamWriter sw,
-                                                    ConcurrentQueue<AisMsgHistoryWrapper> queueForHistory,
-                                                    int[] counterContainer)
+                                                    AsyncClientStreamingCall<AISResult, Empty> grpcStreamer,
+                                                    ConcurrentQueue<object[]> queueForHistory,
+                                                    int[] counterContainer,
+                                                    uint sessionId)
         {
+            DateTime sessionStart = DateTime.UtcNow;
+
             await foreach (MessageKitDto msg in messageChannel.Reader.ReadAllAsync())
             {
                 AISResult? aisRes = ProcessMessageBytes(msg.MessageBuffer, msg.TypeBuffer, msg.BytesCount);
@@ -215,25 +255,26 @@ namespace StreamAIS
                 }
                 finally
                 {
-                    AisMsgHistoryWrapper? histEntry = AisMsgHistoryWrapper.GetInstance(aisRes);
-                    if (histEntry != null)
-                    {
-                        queueForHistory.Enqueue(histEntry);
-                        Interlocked.Increment(ref counterContainer[0]);
-                    }
+                    object[] entry = ConvertAisToObject(aisRes);
+                    entry[0] = sessionId;
+                    entry[1] = sessionStart;
+                    entry[2] = (long)((DateTime.UtcNow - sessionStart).TotalMilliseconds);
 
-                    await sw.WriteLineAsync(Encoding.UTF8.GetString(msg.MessageBuffer.AsSpan(0, msg.BytesCount)));
-
+                    queueForHistory.Enqueue(entry);
+                    Interlocked.Increment(ref counterContainer[0]);
+                    
                     ArrayPool<byte>.Shared.Return(msg.MessageBuffer, true);
                     ArrayPool<byte>.Shared.Return(msg.TypeBuffer, true);
                 }
             }
         }
 
-        private static async Task HistoryConsumingLoop(ConcurrentQueue<AisMsgHistoryWrapper> queue, 
+        private static async Task HistoryConsumingLoop(ConcurrentQueue<object[]> queue,
+                                                       ClickHouseClient chClient,
                                                        TimeSpan timerInterval, 
                                                        int[] counterContainer,
-                                                       int minBatchSize)
+                                                       int minBatchSize,
+                                                       string[] columns)
         {
             using (PeriodicTimer timer = new PeriodicTimer(timerInterval))
             {
@@ -241,9 +282,9 @@ namespace StreamAIS
                 {
                     while (counterContainer[0] < minBatchSize) { /* wait to fill... */ }
 
-                    Debug.WriteLine($"{counterContainer[0]} records in queue");
-                    queue.Clear();
+                    await chClient.InsertBinaryAsync("AIS_History", columns, queue);
 
+                    queue.Clear();
                     Interlocked.Add(ref counterContainer[0], counterContainer[0] * -1);
                 }
             }
@@ -315,6 +356,66 @@ namespace StreamAIS
                     break;
             }
             return null;
+        }
+
+        private static object[] ConvertAisToObject(AISResult aismsg)
+        {
+            object[] result = new object[36];
+
+            result[3] = aismsg.UserMMSI;
+            result[4] = aismsg.Repeated;
+
+            if (aismsg.Position != null)
+            {
+                result[5] = 1;
+
+                result[6] = aismsg.Position.Latitude;
+                result[7] = aismsg.Position.Longitude;
+                result[8] = aismsg.Position.PositionAccuracy;
+                result[9] = aismsg.Position.NavigationalStatus;
+                result[10] = aismsg.Position.RateOfTurn;
+                result[11] = aismsg.Position.Cog;
+                result[12] = aismsg.Position.Sog;
+                result[13] = aismsg.Position.TrueHeading;
+                result[14] = aismsg.Position.TimeStopSeconds;
+                result[15] = aismsg.Position.SpecialManeuver;
+            }
+            else if (aismsg.ShipData != null)
+            {
+                result[5] = 5;
+
+                result[16] = aismsg.ShipData.Name;
+                result[17] = aismsg.ShipData.ShipType;
+                result[18] = aismsg.ShipData.DimA;
+                result[19] = aismsg.ShipData.DimB;
+                result[20] = aismsg.ShipData.DimC;
+                result[21] = aismsg.ShipData.DimD;
+
+                result[22] = aismsg.ShipData.CallSign;
+                result[23] = aismsg.ShipData.IMONumber;
+
+                result[24] = aismsg.ShipData.EtaMinute;
+                result[25] = aismsg.ShipData.EtaHour;
+                result[26] = aismsg.ShipData.EtaDay;
+                result[27] = aismsg.ShipData.EtaMonth;
+
+                result[28] = aismsg.ShipData.MaxStaticDraught;
+                result[29] = aismsg.ShipData.Destination;
+
+                result[30] = aismsg.ShipData.VendorIdName;
+                result[31] = aismsg.ShipData.VendorIdSerial;
+                result[32] = aismsg.ShipData.VendorIdModel;
+            }
+            else //if safety != null
+            {
+                result[5] = 12;
+
+                result[33] = aismsg.Safety.Text;
+                result[34] = aismsg.Safety.DestinationMMSI;
+                result[35] = aismsg.Safety.Retransmission;
+            }
+
+            return result;
         }
     }
 }
