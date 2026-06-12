@@ -490,8 +490,6 @@ $RECYCLE.BIN/
 #text
 *.txt
 
-appsettings.json
-
 *.http
 
 # libraries
@@ -501,3 +499,4 @@ leaflet-glify/
 
 #sensitive configs
 *.config
+secrets.json

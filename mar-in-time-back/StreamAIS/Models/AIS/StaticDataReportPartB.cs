@@ -8,7 +8,7 @@ namespace StreamAIS.Models.AIS
         [JsonPropertyName("ShipType")]
         public override byte Type { get => base.Type; set => base.Type = value; }
 
-        public int VenderIDModel { get; set; }
+        public byte VenderIDModel { get; set; }
         public int VenderIDSerial { get; set; }
         public string VenderIDName { get; set; } = string.Empty;
     }

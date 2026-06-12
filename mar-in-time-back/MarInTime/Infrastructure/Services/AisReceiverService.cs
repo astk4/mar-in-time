@@ -10,8 +10,15 @@ namespace MarInTime.Infrastructure.Services
 {
     public class AisReceiverService : AisSender.AisSenderBase
     {
+        private const string ExpiryKey = "Redis:ExpiryMinutes:AIS";
+
         private readonly StackExchange.Redis.IDatabase redisDb;
-        public AisReceiverService(IConnectionMultiplexer redisMultiplexer) => redisDb = redisMultiplexer.GetDatabase();
+        private readonly IConfiguration configuration;
+        public AisReceiverService(IConnectionMultiplexer redisMultiplexer, IConfiguration configuration)
+        {
+            redisDb = redisMultiplexer.GetDatabase();
+            this.configuration = configuration;
+        }
 
         public override async Task<Empty> SendMessages(IAsyncStreamReader<AISResult> requestStream, ServerCallContext context)
         {
@@ -19,35 +26,43 @@ namespace MarInTime.Infrastructure.Services
             {
                 await foreach (AISResult message in requestStream.ReadAllAsync(context.CancellationToken))
                 {
+                    if (message.Safety != null)
+                    {
+                        Console.WriteLine($"GRPC received safety message: {message.Safety.Text}");
+                        continue;
+                    }
+
+                    double minutes = configuration.GetValue<double>(ExpiryKey);
+                    TimeSpan expiry = TimeSpan.FromMinutes(minutes);
+
                     if (message.Position != null)
                     {
-                        await redisDb.HashSetAsync(ShipCheckpointDto.HashKey,
+                        await redisDb.HashFieldSetAndSetExpiryAsync(ShipCheckpointDto.HashKey,
                                                    $"{message.UserMMSI}:{ShipCheckpointDto.LatitudeHashField}",
-                                                   message.Position.Latitude);
+                                                   message.Position.Latitude,
+                                                   expiry);
 
-                        await redisDb.HashSetAsync(ShipCheckpointDto.HashKey,
+                        await redisDb.HashFieldSetAndSetExpiryAsync(ShipCheckpointDto.HashKey,
                                                    $"{message.UserMMSI}:{ShipCheckpointDto.LongitudeHashField}",
-                                                   message.Position.Longitude);
+                                                   message.Position.Longitude,
+                                                   expiry);
 
                         double course = GetCourse(message.Position);
 
                         if (course < 360) {
-                            await redisDb.HashSetAsync(ShipCheckpointDto.HashKey,
-                                                       $"{message.UserMMSI}:{ShipCheckpointDto.CourseHashField}", course); 
+                            await redisDb.HashFieldSetAndSetExpiryAsync(ShipCheckpointDto.HashKey,
+                                                                   $"{message.UserMMSI}:{ShipCheckpointDto.CourseHashField}", 
+                                                                   course, expiry); 
                         }
                     }
-                    else if (message.ShipData != null)
+                    else //if message.ShipData != null
                     {
                         if (message.ShipData.ShipType == 0) { continue; } //no ship type available
 
                         int typeId = (int)ShipCheckpointDto.GetTypeForNumber(message.ShipData.ShipType);
 
-                        await redisDb.HashSetAsync(ShipCheckpointDto.HashKey,
-                                                   $"{message.UserMMSI}:{ShipCheckpointDto.TypeHashField}", typeId);
-                    }
-                    else
-                    {
-                        Console.WriteLine($"GRPC received safety message: {message.Safety.Text}");
+                        await redisDb.HashFieldSetAndSetExpiryAsync(ShipCheckpointDto.HashKey,
+                                                   $"{message.UserMMSI}:{ShipCheckpointDto.TypeHashField}", typeId, expiry);
                     }
                 }
             }
