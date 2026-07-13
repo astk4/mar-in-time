@@ -92,7 +92,7 @@ export function initMainMap() {
 
 export async function addMarkers()
 {
-  let markers = await fetchGet("https://localhost:7120/locations/ports");
+  let markers = await fetchGet("http://host.docker.internal:7120/locations/ports");
 
   for ( var i=0; i < markers.length; ++i ) 
   {
@@ -149,7 +149,7 @@ async function updateEezLayer(bbox, zoomLevel, prevZoomLevel=undefined) {
       params.append("prevZoom", prevZoomLevel);
     }
 
-    let featuresResponse = await spatialOptimization.fetchGetRequestAbortable(`https://localhost:7120/spatial/eez?${params.toString()}`);
+    let featuresResponse = await spatialOptimization.fetchGetRequestAbortable(`/spatial/eez?${params.toString()}`);
     eezLayer.setStyle({
       weight: spatialOptimization.selectOutlineThickness(zoomLevel)
     });

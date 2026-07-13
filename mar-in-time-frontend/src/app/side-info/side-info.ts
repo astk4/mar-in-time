@@ -27,7 +27,7 @@ export class SideInfo {
       this.coordDisplay.lat = App.roundTo(details.lat, 6);
       this.coordDisplay.lng = App.roundTo(details.lng, 6);
 
-      const url = `https://localhost:7120/spatial/point?lng=${details.lng}&lat=${details.lat}`;
+      const url = `http://host.docker.internal:7120/spatial/point?lng=${details.lng}&lat=${details.lat}`;
       this.pointSummary.atSea = null
 
       this.fetcherService.getItem(url).subscribe((data) => 

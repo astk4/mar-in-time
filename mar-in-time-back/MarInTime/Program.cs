@@ -10,6 +10,8 @@ using StackExchange.Redis;
 using MarInTime.Domain.DTOs;
 using MarInTime.Domain.Entities;
 using MarInTime.Presentation;
+using Microsoft.Extensions.Logging.Console;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 
 namespace MarInTime
 {
@@ -77,6 +79,23 @@ namespace MarInTime
                            .AllowCredentials();
                 });
             });
+            builder.Logging.AddSimpleConsole(options =>
+            {
+                options.ColorBehavior = LoggerColorBehavior.Enabled;
+            });
+
+            builder.WebHost.ConfigureKestrel(options =>
+            {
+                options.ListenAnyIP(8080, o =>
+                {
+                    o.Protocols = HttpProtocols.Http1;
+                });
+
+                options.ListenAnyIP(8081, o =>
+                {
+                    o.Protocols = HttpProtocols.Http2;
+                });
+            });
 
             builder.Services.AddGrpc();
             builder.Services.AddSignalR()
@@ -94,7 +113,7 @@ namespace MarInTime
                 app.UseSwaggerUI();
             } 
 
-            app.UseHttpsRedirection();
+            //app.UseHttpsRedirection();
 
             app.UseCors("MainFrontendPolicy");
 

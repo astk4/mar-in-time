@@ -21,15 +21,19 @@ namespace MarInTime.Presentation.Controllers
         private readonly ILandChecker landChecker;
         private readonly StackExchange.Redis.IDatabase redisDb;
         private readonly IConfiguration configuration;
+        private ILogger<SpatialEntitiesController> logger;
+
         public SpatialEntitiesController(IGisService<EconomicZoneDto> eezService, 
                                          ILandChecker landChecker, 
                                          IConnectionMultiplexer multiplexer,
-                                         IConfiguration configuration)
+                                         IConfiguration configuration,
+                                         ILogger<SpatialEntitiesController> logger)
         {
             this.eezService = eezService;
             this.landChecker = landChecker;
             this.redisDb = multiplexer.GetDatabase();
             this.configuration = configuration;
+            this.logger = logger;
         }
 
         private async IAsyncEnumerable<object> StreamMapChanges(int zoom, ViewportBoundsViewModel viewModel, RedisValue[] oldChunkIds, HashSet<int> oldChunkIdsMutable, string sessionKey)
@@ -76,6 +80,7 @@ namespace MarInTime.Presentation.Controllers
             }
 
             string sessionEezKey = $"{this.HttpContext.Session.Id}:eez";
+            logger.LogInformation(sessionEezKey);
             Debug.WriteLine(sessionEezKey);
 
             RedisValue[] oldChunkIds;
