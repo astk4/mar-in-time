@@ -10,6 +10,8 @@ using StackExchange.Redis;
 using MarInTime.Domain.DTOs;
 using MarInTime.Domain.Entities;
 using MarInTime.Presentation;
+using Microsoft.Extensions.Logging.Console;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 
 namespace MarInTime
 {
@@ -21,9 +23,12 @@ namespace MarInTime
 
             builder.Configuration.AddJsonFile("secrets.json", true);
 
+            bool inContainer = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
+            string pgStringKey = inContainer ? "Data:Docker" : "Data:Main";
+
             builder.Services.AddDbContext<MainDbContext>(options =>
             {
-                options.UseNpgsql(builder.Configuration["Data:Main"],
+                options.UseNpgsql(builder.Configuration[pgStringKey],
                                   npgsql => npgsql.UseNetTopologySuite());
             });
 
@@ -36,7 +41,8 @@ namespace MarInTime
             builder.Services.AddScoped<IGisService<EconomicZoneDto>, EezService>();
             builder.Services.AddHostedService<AisBufferingBackgroundService>();
 
-            string redisHost = builder.Configuration["Redis:Host"]!,
+            string redisHostKey = inContainer ? "Redis:Host:Docker" : "Redis:Host:Main";
+            string redisHost = builder.Configuration[redisHostKey]!,
                    redisPort = builder.Configuration["Redis:Port"]!;
             ConnectionMultiplexer redis = ConnectionMultiplexer.Connect($"{redisHost}:{redisPort}");
             builder.Services.AddSingleton<IConnectionMultiplexer>(redis);
@@ -82,6 +88,8 @@ namespace MarInTime
             builder.Services.AddSignalR()
                             .AddMessagePackProtocol();
 
+            builder.Logging.AddSimpleConsole(opt => opt.ColorBehavior = LoggerColorBehavior.Enabled);
+
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
 
@@ -92,9 +100,12 @@ namespace MarInTime
             {
                 app.UseSwagger();
                 app.UseSwaggerUI();
-            } 
+            }
 
-            app.UseHttpsRedirection();
+            if (!inContainer)
+            {
+                app.UseHttpsRedirection();
+            }
 
             app.UseCors("MainFrontendPolicy");
 
@@ -106,7 +117,31 @@ namespace MarInTime
             app.MapGrpcService<AisReceiverService>();
             app.MapHub<AisResultHub>("/hubs/ais");
 
+            if (inContainer) { app.Logger.LogInformation("Containerization detected"); }
+            
+            using (IServiceScope scope = app.Services.CreateScope())
+            {
+                MainDbContext dbc = scope.ServiceProvider.GetRequiredService<MainDbContext>();
+                dbc.Database.Migrate();
+
+                if (inContainer) //this condition is temporary
+                {
+                    ApplyMigrationsDirectory(dbc.Database, "Infrastructure/Persistence/CustomSchemaMigrations/");
+                }
+                ApplyMigrationsDirectory(dbc.Database, "Infrastructure/Persistence/DataMigrations/");
+            }
+
             app.Run();
+        }
+
+        private static void ApplyMigrationsDirectory(DatabaseFacade db, string pathToDir)
+        {
+            string[] migFiles = Directory.GetFiles(pathToDir).Order().ToArray();
+            foreach (string filePath in migFiles)
+            {
+                string script = File.ReadAllText(filePath);
+                db.ExecuteSqlRaw(script);
+            }
         }
     }
 }

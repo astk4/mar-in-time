@@ -3,6 +3,7 @@ import { RouterOutlet } from '@angular/router';
 import { MainMap } from './main-map/main-map';
 import { SideInfo } from './side-info/side-info';
 import { patchIconPaths } from './main-map/leaflet-logic/main_map.js';
+import { ConfigDataService } from './config-service';
 
 @Component({
   selector: 'app-root',
@@ -17,7 +18,10 @@ export class App {
     return Math.round((num+Number.EPSILON) * pow) / pow;
   }
 
+  constructor(private cfds: ConfigDataService) { }
+
   ngOnInit() {
     patchIconPaths();
+    console.log("Containerization detected:", this.cfds.configData.inContainer);
   }
 }

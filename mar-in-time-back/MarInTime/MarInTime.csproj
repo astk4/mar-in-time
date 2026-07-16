@@ -35,4 +35,25 @@
     <ProjectReference Include="..\AisCommunication\AisCommunication.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="Infrastructure\Persistence\CustomSchemaMigrations\create_eez_table.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="Infrastructure\Persistence\CustomSchemaMigrations\stored_function_get_eez_zooms.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="Infrastructure\Persistence\DataMigrations\mig1_fill_countries.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="Infrastructure\Persistence\DataMigrations\mig2_fill_ports.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="Infrastructure\Persistence\DataMigrations\mig3_fill_routes.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="Infrastructure\Persistence\DataMigrations\mig4_fill_port_route_relations.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

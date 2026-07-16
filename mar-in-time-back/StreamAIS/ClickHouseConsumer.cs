@@ -36,11 +36,11 @@ namespace StreamAIS
         private DateTime sessionStart;
         private bool disposedValue;
         
-        public ClickHouseConsumer(IConfiguration configuration) : base(configuration)
+        public ClickHouseConsumer(IConfiguration configuration, ClickHouseClient chClient) : base(configuration)
         {
+            this.chClient = chClient;
             this.queue = new ConcurrentQueue<object[]>();
 
-            this.chClient = new ClickHouseClient(configuration["Clickhouse:ConnectionString"]!);
             this.minBatchSize = configuration.GetValue<int>("Clickhouse:MinBatchSize");
 
             double historyIntervalSec = configuration.GetValue<double>("Clickhouse:BatchIntervalSec");

@@ -1,4 +1,4 @@
-drop function get_eez_zoom_names;
+drop function IF EXISTS get_eez_zoom_names;
 CREATE OR REPLACE FUNCTION get_eez_zoom_names()
 RETURNS TABLE(view_name varchar) 
 LANGUAGE plpgsql AS 
