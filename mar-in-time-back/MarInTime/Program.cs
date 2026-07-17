@@ -12,6 +12,7 @@ using MarInTime.Domain.Entities;
 using MarInTime.Presentation;
 using Microsoft.Extensions.Logging.Console;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 
 namespace MarInTime
 {
@@ -76,7 +77,12 @@ namespace MarInTime
                     builder.SetIsOriginAllowed(origin =>
                             {
                                 Uri originUri = new Uri(origin);
-                                return allowedHosts.Contains(originUri.Host) && allowedPorts.Contains(originUri.Port);
+                                bool ok = allowedHosts.Contains(originUri.Host) && allowedPorts.Contains(originUri.Port);
+                                if (!ok)
+                                {
+                                    Console.WriteLine(originUri.ToString() + " not ok");
+                                }
+                                return ok;
                             })
                            .WithMethods(allowedMethods)
                            .AllowAnyHeader()
@@ -90,6 +96,15 @@ namespace MarInTime
 
             builder.Logging.AddSimpleConsole(opt => opt.ColorBehavior = LoggerColorBehavior.Enabled);
 
+            if (inContainer)
+            {
+                builder.WebHost.ConfigureKestrel((options) =>
+                {
+                    options.ListenAnyIP(8080, opt1 => opt1.Protocols = HttpProtocols.Http1);
+                    options.ListenAnyIP(8081, opt2 => opt2.Protocols = HttpProtocols.Http2);
+                });
+            }
+
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
 
@@ -102,11 +117,7 @@ namespace MarInTime
                 app.UseSwaggerUI();
             }
 
-            if (!inContainer)
-            {
-                app.UseHttpsRedirection();
-            }
-
+            app.UseHttpsRedirection();
             app.UseCors("MainFrontendPolicy");
 
             app.UseRouting();

@@ -11,9 +11,13 @@ var prevZoomLevel = 4;
 var layersToRemove = [];
 
 var onMapClickAngularCallback = null;
+var osConfigData = null;
 
 export function registerOnMapClickCallback(callback) {
   onMapClickAngularCallback = callback;
+}
+export function setOsConfigData(cfd) {
+  osConfigData = cfd;
 }
 
 async function myOnMove() 
@@ -92,7 +96,7 @@ export function initMainMap() {
 
 export async function addMarkers()
 {
-  let markers = await fetchGet("https://localhost:7120/locations/ports");
+  let markers = await fetchGet(osConfigData.backendBaseUrl + "/locations/ports");
 
   for ( var i=0; i < markers.length; ++i ) 
   {
@@ -149,7 +153,12 @@ async function updateEezLayer(bbox, zoomLevel, prevZoomLevel=undefined) {
       params.append("prevZoom", prevZoomLevel);
     }
 
-    let featuresResponse = await spatialOptimization.fetchGetRequestAbortable(`https://localhost:7120/spatial/eez?${params.toString()}`);
+    var getUrl = `/spatial/eez?${params.toString()}`;
+    if (osConfigData && !osConfigData.inContainer) {
+      getUrl = osConfigData.backendBaseUrl + getUrl;
+    }
+    let featuresResponse = await spatialOptimization.fetchGetRequestAbortable(getUrl);
+
     eezLayer.setStyle({
       weight: spatialOptimization.selectOutlineThickness(zoomLevel)
     });

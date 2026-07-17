@@ -1,3 +1,4 @@
 {
-    "inContainer": false
+    "inContainer": false,
+    "backendBaseUrl": "https://localhost:7120"
 }

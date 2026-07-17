@@ -35,11 +35,12 @@ namespace StreamAIS
         private bool disposedValue;
 
         public GrpcSenderConsumer(IConfiguration configuration,
+                                  string envKey,
                                   Channel<MessageKitDto> messageChannel,
                                   int maxTypeLength)
             : base(configuration)
         {
-            string targetUrl = configuration["Grpc:TargetUrl"]!;
+            string targetUrl = configuration["Grpc:TargetUrl:"+envKey]!;
 
             this.grpcChannel = GrpcChannel.ForAddress(targetUrl);
 
@@ -81,6 +82,7 @@ namespace StreamAIS
                 catch (Exception ex)
                 {
                     Console.WriteLine("Consumer iteration exception: " + ex.Message);
+                    Console.WriteLine(grpcChannel.Target);
                 }
                 finally
                 {

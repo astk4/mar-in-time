@@ -33,8 +33,8 @@ namespace StreamAIS
             {
                 Console.WriteLine("Containerization detected");
             }
-            string chStringKey = inContainer ? "Docker" : "Main";
-            ClickHouseClient clickHouseClient = new ClickHouseClient(confRoot["Clickhouse:ConnectionString:" + chStringKey]!);
+            string envStringKey = inContainer ? "Docker" : "Main";
+            ClickHouseClient clickHouseClient = new ClickHouseClient(confRoot["Clickhouse:ConnectionString:" + envStringKey]!);
             await RunSqlFromFile(clickHouseClient, "sql/create_history_table.sql");
             await RunSqlFromFile(clickHouseClient, "sql/create_sessions_amount_view.sql");
 
@@ -71,7 +71,7 @@ namespace StreamAIS
             WebSocketCloseStatus futureCloseStatus = WebSocketCloseStatus.NormalClosure;
             string? explMessage = null;
 
-            GrpcSenderConsumer grpcConsumer = new GrpcSenderConsumer(confRoot, producerConsumerChannel, maxTypeLength);
+            GrpcSenderConsumer grpcConsumer = new GrpcSenderConsumer(confRoot, envStringKey, producerConsumerChannel, maxTypeLength);
             ClickHouseConsumer chConsumer = new ClickHouseConsumer(confRoot, clickHouseClient);
 
             grpcConsumer.OnEntryObtained += chConsumer.CollectEntry;

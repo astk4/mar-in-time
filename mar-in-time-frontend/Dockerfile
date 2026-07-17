@@ -16,6 +16,8 @@ COPY container_setup.sh ./
 
 RUN sed -i 's/\r$//' container_setup.sh
 
+COPY /nginx/container.conf /etc/nginx/conf.d/container.conf
+
 COPY --from=build /app/dist/mar-in-time-frontend/browser /usr/share/nginx/html
 
 EXPOSE 80
