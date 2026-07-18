@@ -1,4 +1,4 @@
 {
     "inContainer": true,
-    "backendBaseUrl": "https://backend:8080"
+    "backendBaseUrl": ""
 }

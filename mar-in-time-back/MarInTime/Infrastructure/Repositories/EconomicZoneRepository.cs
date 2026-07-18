@@ -9,6 +9,8 @@ using Microsoft.Extensions.Caching.Memory;
 using NetTopologySuite.Geometries;
 using Npgsql;
 using System.Collections.Frozen;
+using System.Data;
+using System.Data.Common;
 
 namespace MarInTime.Infrastructure.Repositories
 {
@@ -23,13 +25,11 @@ namespace MarInTime.Infrastructure.Repositories
 
         private const string GidByPointCommand = "select gid as \"Value\" from eez_v12 where ST_Intersects(geom, ST_Point({0}, {1}, 4326))";
 
-        private readonly IConfiguration configuration;
         private readonly IMemoryCache memoryCache;
 
-        public EconomicZoneRepository(MainDbContext context,IConfiguration configuration, IMemoryCache memoryCache) 
+        public EconomicZoneRepository(MainDbContext context, IMemoryCache memoryCache) 
             : base(context) 
         {
-            this.configuration = configuration;
             this.memoryCache = memoryCache;
         }
         public IEnumerable<string> GetRelationNames(string funcName)
@@ -62,44 +62,50 @@ namespace MarInTime.Infrastructure.Repositories
 
         public async IAsyncEnumerable<SpatialEntityDisplayDto> GetChunksInBounds(string tableName, double xMin, double yMin, double xMax, double yMax, bool orderByArea)
         {
-            string connStr = configuration["Data:Main"]!;
-            using(NpgsqlConnection connection = new NpgsqlConnection(connStr))
+            await this.context.Database.OpenConnectionAsync();
+
+            string cmdText = string.Format(EezChunkCommand, tableName);
+            cmdText += orderByArea ? orderByAreaPart : orderByDistanceToViewportCenterPart;
+
+            using (DbCommand selectCommand = this.context.Database.GetDbConnection().CreateCommand())
             {
-                await connection.OpenAsync();
+                selectCommand.CommandText = cmdText;
+                selectCommand.CommandType = CommandType.Text;
 
-                string cmdText = string.Format(EezChunkCommand, tableName);
-                cmdText += orderByArea ? orderByAreaPart : orderByDistanceToViewportCenterPart;
+                AddSqlParameterWithValue(selectCommand, "@xMin", xMin);
+                AddSqlParameterWithValue(selectCommand, "@xMax", xMax);
+                AddSqlParameterWithValue(selectCommand, "@yMin", yMin);
+                AddSqlParameterWithValue(selectCommand, "@yMax", yMax);
 
-                using (NpgsqlCommand selectCommand = new NpgsqlCommand(cmdText, connection))
+                AddSqlParameterWithValue(selectCommand, "@pointX", (xMin + xMax) / 2);
+                AddSqlParameterWithValue(selectCommand, "@pointY", (yMin + yMax) / 2);
+
+                using (DbDataReader reader = await selectCommand.ExecuteReaderAsync())
                 {
-                    selectCommand.Parameters.AddWithValue("@xMin", xMin);
-                    selectCommand.Parameters.AddWithValue("@xMax", xMax);
-                    selectCommand.Parameters.AddWithValue("@yMin", yMin);
-                    selectCommand.Parameters.AddWithValue("@yMax", yMax);
-
-                    selectCommand.Parameters.AddWithValue("@pointX", (xMin + xMax) / 2);
-                    selectCommand.Parameters.AddWithValue("@pointY", (yMin + yMax) / 2);
-
-                    using (NpgsqlDataReader reader = await selectCommand.ExecuteReaderAsync())
+                    try
                     {
-                        try
+                        while (await reader.ReadAsync())
                         {
-                            while (await reader.ReadAsync())
-                            {
-                                yield return new SpatialEntityDisplayDto(reader.GetInt32(0), reader.GetFieldValue<int?>(1), reader.GetString(2));
-                            }
+                            yield return new SpatialEntityDisplayDto(reader.GetInt32(0), reader.GetFieldValue<int?>(1), reader.GetString(2));
                         }
-                        finally
-                        {
-                            await connection.CloseAsync();
+                    }
+                    finally
+                    {
+                        await this.context.Database.CloseConnectionAsync();
 
-                            await reader.DisposeAsync();
-                            await selectCommand.DisposeAsync();
-                            await connection.DisposeAsync();
-                        }
+                        await reader.DisposeAsync();
+                        await selectCommand.DisposeAsync();
                     }
                 }
             }
+        }
+
+        private static void AddSqlParameterWithValue(DbCommand command, string name, object value)
+        {
+            DbParameter parameter = command.CreateParameter();
+            parameter.ParameterName = name;
+            parameter.Value = value;
+            command.Parameters.Add(parameter);
         }
     }
 }

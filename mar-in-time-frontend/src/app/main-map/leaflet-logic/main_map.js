@@ -153,10 +153,7 @@ async function updateEezLayer(bbox, zoomLevel, prevZoomLevel=undefined) {
       params.append("prevZoom", prevZoomLevel);
     }
 
-    var getUrl = `/spatial/eez?${params.toString()}`;
-    if (osConfigData && !osConfigData.inContainer) {
-      getUrl = osConfigData.backendBaseUrl + getUrl;
-    }
+    var getUrl = osConfigData.backendBaseUrl + `/spatial/eez?${params.toString()}`;
     let featuresResponse = await spatialOptimization.fetchGetRequestAbortable(getUrl);
 
     eezLayer.setStyle({

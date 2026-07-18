@@ -36,10 +36,25 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="Infrastructure\Persistence\CustomSchemaMigrations\create_eez_table.sql">
+    <None Update="Infrastructure\Persistence\CustomSchemaMigrations\mig1_create_eez_table.sql">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
-    <None Update="Infrastructure\Persistence\CustomSchemaMigrations\stored_function_get_eez_zooms.sql">
+    <None Update="Infrastructure\Persistence\CustomSchemaMigrations\mig2_create_eez_index.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="Infrastructure\Persistence\CustomSchemaMigrations\mig3_create_demo_eez_mat_view.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="Infrastructure\Persistence\CustomSchemaMigrations\mig4_create_function_get_eez_zooms.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="Infrastructure\Persistence\CustomSchemaMigrations\mig5_create_land_table.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="Infrastructure\Persistence\CustomSchemaMigrations\mig6_create_land_index.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="Infrastructure\Persistence\CustomSchemaMigrations\mig7_create_chunk_distance_function.sql">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
     <None Update="Infrastructure\Persistence\DataMigrations\mig1_fill_countries.sql">

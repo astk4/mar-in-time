@@ -13,6 +13,7 @@ using MarInTime.Presentation;
 using Microsoft.Extensions.Logging.Console;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace MarInTime
 {
@@ -150,8 +151,12 @@ namespace MarInTime
             string[] migFiles = Directory.GetFiles(pathToDir).Order().ToArray();
             foreach (string filePath in migFiles)
             {
-                string script = File.ReadAllText(filePath);
-                db.ExecuteSqlRaw(script);
+                using (IDbContextTransaction transaction = db.BeginTransaction())
+                {
+                    string script = File.ReadAllText(filePath);
+                    db.ExecuteSqlRaw(script);
+                    transaction.Commit();
+                }
             }
         }
     }
