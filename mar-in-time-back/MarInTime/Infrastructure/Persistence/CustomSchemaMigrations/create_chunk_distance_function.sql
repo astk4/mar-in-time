@@ -1,6 +1,4 @@
-﻿DROP FUNCTION IF EXISTS distance_from_chunk_to_point;
-
-CREATE OR REPLACE FUNCTION distance_from_chunk_to_point(IN chunk geometry, IN point_x double precision, IN point_y double precision)
+﻿CREATE OR REPLACE FUNCTION distance_from_chunk_to_point(IN chunk geometry, IN point_x double precision, IN point_y double precision)
     RETURNS double precision
     LANGUAGE 'plpgsql'
 AS

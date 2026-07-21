@@ -136,10 +136,7 @@ namespace MarInTime
                 MainDbContext dbc = scope.ServiceProvider.GetRequiredService<MainDbContext>();
                 dbc.Database.Migrate();
 
-                if (inContainer) //this condition is temporary
-                {
-                    ApplyMigrationsDirectory(dbc.Database, "Infrastructure/Persistence/CustomSchemaMigrations/");
-                }
+                ApplyMigrationsDirectory(dbc.Database, "Infrastructure/Persistence/CustomSchemaMigrations/");
                 ApplyMigrationsDirectory(dbc.Database, "Infrastructure/Persistence/DataMigrations/");
             }
 

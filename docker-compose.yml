@@ -3,12 +3,14 @@ services:
     image: postgis/postgis:18-3.6
     container_name: postgres-with-gis-marintime
     environment:
-      POSTGRES_USER: some_pg_user #recommending to define yours
+      POSTGRES_USER: some_pg_user #recommending to define yours AND CHANGE IN RESTORE SCRIPT TOO if you will change here
       POSTGRES_PASSWORD: your_password #recommending to define yours
       POSTGRES_DB: marintime
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - ./backup/pgdata:/var/lib/postgresql/pgdata
+      - ./marintime_geodata.dump:/usr/marintime_geodata.dump
+      - ./dump_import.sh:/docker-entrypoint-initdb.d/dump_import.sh
     ports:
       - "5432:5432"
     healthcheck:
