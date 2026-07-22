@@ -499,3 +499,6 @@ secrets.json
 
 #docker volumes on host machine
 backup/
+
+#docker mounted directory with data binaries
+data_to_import/
