@@ -26,11 +26,11 @@ namespace MarInTime
             builder.Configuration.AddJsonFile("secrets.json", true);
 
             bool inContainer = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
-            string pgStringKey = inContainer ? "Data:Docker" : "Data:Main";
+            string confKey = inContainer ? "Docker" : "Main";
 
             builder.Services.AddDbContext<MainDbContext>(options =>
             {
-                options.UseNpgsql(builder.Configuration[pgStringKey],
+                options.UseNpgsql(builder.Configuration["Data:"+confKey],
                                   npgsql => npgsql.UseNetTopologySuite());
             });
 
@@ -43,9 +43,8 @@ namespace MarInTime
             builder.Services.AddScoped<IGisService<EconomicZoneDto>, EezService>();
             builder.Services.AddHostedService<AisBufferingBackgroundService>();
 
-            string redisHostKey = inContainer ? "Redis:Host:Docker" : "Redis:Host:Main";
-            string redisHost = builder.Configuration[redisHostKey]!,
-                   redisPort = builder.Configuration["Redis:Port"]!;
+            string redisHost = builder.Configuration["Redis:Host:"+confKey]!,
+                   redisPort = builder.Configuration["Redis:Port:"+confKey]!;
             ConnectionMultiplexer redis = ConnectionMultiplexer.Connect($"{redisHost}:{redisPort}");
             builder.Services.AddSingleton<IConnectionMultiplexer>(redis);
 
@@ -66,10 +65,11 @@ namespace MarInTime
                                 options.JsonSerializerOptions.Converters.Insert(0, new GeoJsonConverterFactory());
                             });
 
-            string[] allowedHosts = builder.Configuration.GetSection("CORS_Settings:AllowedHosts")!.Get<string[]>()!,
-                     allowedMethods = builder.Configuration.GetSection("CORS_Settings:AllowedMethods")!.Get<string[]>()!;
+            string corsConfKey = "CORS_Settings:" + confKey;
+            string[] allowedHosts = builder.Configuration.GetSection(corsConfKey+":AllowedHosts")!.Get<string[]>()!,
+                     allowedMethods = builder.Configuration.GetSection(corsConfKey+":AllowedMethods")!.Get<string[]>()!;
 
-            int[] allowedPorts = builder.Configuration.GetSection("CORS_Settings:AllowedPorts")!.Get<int[]>()!;
+            int[] allowedPorts = builder.Configuration.GetSection(corsConfKey+":AllowedPorts")!.Get<int[]>()!;
 
             builder.Services.AddCors(options =>
             {
@@ -78,12 +78,7 @@ namespace MarInTime
                     builder.SetIsOriginAllowed(origin =>
                             {
                                 Uri originUri = new Uri(origin);
-                                bool ok = allowedHosts.Contains(originUri.Host) && allowedPorts.Contains(originUri.Port);
-                                if (!ok)
-                                {
-                                    Console.WriteLine(originUri.ToString() + " not ok");
-                                }
-                                return ok;
+                                return allowedHosts.Contains(originUri.Host) && allowedPorts.Contains(originUri.Port);
                             })
                            .WithMethods(allowedMethods)
                            .AllowAnyHeader()
