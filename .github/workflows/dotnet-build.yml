@@ -1,0 +1,60 @@
+name: .NET Build (Backend)
+
+on:
+  push:
+    branches:
+      - 'development'
+      - 'experimental'
+
+defaults:
+  run:
+    working-directory: ./mar-in-time-back
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v7
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v5
+      with:
+        dotnet-version: '8.0'
+
+    - name: Restore dependencies
+      run: dotnet restore --runtime win-x64 /p:NodeReuse=false
+
+    - name: Publish gRPC Contracts Library
+      run: dotnet publish ./AisCommunication -c Release --no-restore --self-contained true /p:NodeReuse=false /p:UseSharedCompilation=false /p:BuildInParallel=false
+
+    - name: Publish Main API
+      run: dotnet publish ./MarInTime -c Release --no-restore --self-contained true /p:NodeReuse=false /p:UseSharedCompilation=false /p:BuildInParallel=false
+
+    - name: Publish AIS stream microservice
+      run: dotnet publish ./StreamAIS -c Release --no-restore --self-contained true /p:NodeReuse=false /p:UseSharedCompilation=false /p:BuildInParallel=false
+
+    - name: Upload gRPC Contracts Library
+      uses: actions/upload-artifact@v7
+      with:
+        name: ais_grpc_core_lib
+        path: |
+          **/AisCommunication/bin/Release/net8.0/publish/
+        if-no-files-found: error
+
+    - name: Upload Main API
+      uses: actions/upload-artifact@v7
+      with:
+        name: marintime_api_main
+        path: |
+          **/MarInTime/bin/Release/net8.0/win-x64/publish/
+        if-no-files-found: error
+
+    - name: Upload AIS stream microservice
+      uses: actions/upload-artifact@v7
+      with:
+        name: ais_microservice
+        path: |
+          **/StreamAIS/bin/Release/net8.0/win-x64/publish/
+        if-no-files-found: error
