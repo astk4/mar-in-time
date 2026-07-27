@@ -13,13 +13,14 @@ services:
       - ./backup/pgdata:/var/lib/postgresql/pgdata
       - ./data_to_import:/usr/data_to_import #marintime_geodata.dump file should be HERE
       - ./dump_import.sh:/docker-entrypoint-initdb.d/dump_import.sh
+      - ./pg_health_check.sh:/usr/pg_health_check.sh
     ports:
       - "5432:5432"
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U some_pg_user -d marintime" ] #change username also here if you changed POSTGRES_USER value
+      test: ["CMD-SHELL", "bash /usr/pg_health_check.sh"]
       interval: 10s
       timeout: 10s
-      retries: 5
+      retries: 20
 
   redis:
     image: redis:8.4-alpine
@@ -42,7 +43,7 @@ services:
       CLICKHOUSE_USER: default #or your preferred name
       CLICKHOUSE_PASSWORD: your_password #recommending to define yours
     volumes:
-      - ./backup/clickhouse_data:/var/lib/clickhouse
+      - mrt_clickhouse_data:/var/lib/clickhouse
     ports:
       - "8123:8123"
       - "9000:9000"
@@ -91,7 +92,7 @@ services:
 volumes:
   pgdata:
   redisdata:
-  clickhouse_data:
+  mrt_clickhouse_data:
 
 
   
