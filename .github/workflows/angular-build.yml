@@ -5,6 +5,10 @@ on:
     branches:
       - 'development'
       - 'experimental'
+  pull_request:
+    branches:
+      - 'main'
+      - 'master'
 
 defaults:
   run:

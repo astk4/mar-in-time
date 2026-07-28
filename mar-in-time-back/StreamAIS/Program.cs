@@ -62,7 +62,7 @@ namespace StreamAIS
                 return false;
             };
             await cws.ConnectAsync(new Uri(aisUrl), CancellationToken.None);
-            Console.WriteLine("connected");
+            Console.WriteLine("connected to data source");
 
             byte[] subscriptionBytes = GetSubscriptionMessageBytes(confRoot);
 
