@@ -1,0 +1,58 @@
+name: Angular Build (Frontend)
+
+on:
+  push:
+    branches:
+      - 'development'
+      - 'experimental'
+  pull_request:
+    branches:
+      - 'main'
+      - 'master'
+
+defaults:
+  run:
+    working-directory: ./mar-in-time-frontend
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v7
+
+    - name: Setup Node
+      uses: actions/setup-node@v7
+      with:
+        node-version: "24"
+
+    - name: Install Angular Dependencies
+      run: npm install
+
+    - name: Fetch LeafletJS library
+      run: |
+        wget -O leaflet.zip https://github.com/Leaflet/Leaflet/releases/download/v1.9.4/leaflet.zip
+        unzip leaflet.zip -d ./src/assets/leaflet
+        rm leaflet.zip
+
+    - name: Fetch SignalR library
+      run: |
+        mkdir -p ./src/assets/signalr
+        wget -O ./src/assets/signalr/microsoft-signalr_9.0.6.js https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/9.0.6/signalr.js
+
+    - name: Fetch leaflet-glify library
+      run: |
+        mkdir -p ./src/assets/leaflet-glify
+        wget -O ./src/assets/leaflet-glify/leaflet-glify@3.3.1.min.js https://cdn.jsdelivr.net/npm/leaflet.glify@3.3.1/dist/glify-browser.min.js
+
+    - name: Build Angular Application
+      run: npm run build --prod
+
+    - name: Upload App Files
+      uses: actions/upload-artifact@v7
+      with:
+        name: frontend
+        path: |
+          **/dist/mar-in-time-frontend/
+        if-no-files-found: error

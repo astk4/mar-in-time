@@ -2,6 +2,7 @@
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using Grpc.Net.Client;
+using Grpc.Net.Client.Configuration;
 using Microsoft.Extensions.Configuration;
 using StreamAIS.Models;
 using StreamAIS.Models.AIS;
@@ -34,14 +35,40 @@ namespace StreamAIS
         public Action<AISResult>? OnEntryObtained;
         private bool disposedValue;
 
+        private readonly int pingWaitMillis;
+
         public GrpcSenderConsumer(IConfiguration configuration,
+                                  string envKey,
                                   Channel<MessageKitDto> messageChannel,
                                   int maxTypeLength)
             : base(configuration)
         {
-            string targetUrl = configuration["Grpc:TargetUrl"]!;
+            string targetUrl = configuration["Grpc:TargetUrl:"+envKey]!;
+            int maxRetryAttempts = configuration.GetValue<int>("Grpc:MaxRetryAttempts", 10);
 
-            this.grpcChannel = GrpcChannel.ForAddress(targetUrl);
+            this.grpcChannel = GrpcChannel.ForAddress(targetUrl, new GrpcChannelOptions
+            {
+                MaxRetryAttempts = maxRetryAttempts,
+                ServiceConfig = new ServiceConfig() 
+                {
+                    MethodConfigs = 
+                    {
+                        new MethodConfig() 
+                        {
+                            Names = { MethodName.Default },
+                            RetryPolicy = new RetryPolicy()
+                            {
+                                MaxAttempts = maxRetryAttempts,
+                                InitialBackoff = TimeSpan.FromSeconds(1),
+                                MaxBackoff = TimeSpan.FromSeconds(10),
+                                BackoffMultiplier = 1.25,
+                                RetryableStatusCodes = { StatusCode.Unavailable, StatusCode.ResourceExhausted }
+                            }
+                        }
+                    }
+                }
+            });
+            this.pingWaitMillis = configuration.GetValue<int>("Grpc:WaitPingMillis", 25);
 
             AisSender.AisSenderClient senderClient = new AisSender.AisSenderClient(grpcChannel);
             this.grpcStreamer = senderClient.SendMessages();
@@ -50,10 +77,15 @@ namespace StreamAIS
             this.maxTypeLength = maxTypeLength;
         }
 
-
-
         public override async Task ConsumingLoop()
         {
+            if (this.grpcChannel.State != ConnectivityState.Ready) {
+                Console.WriteLine("gRPC connection is not ready yet, waiting for backend to launch its part");
+            }
+            while (this.grpcChannel.State != ConnectivityState.Ready) {
+                Thread.Sleep(this.pingWaitMillis);
+            }
+
             await foreach (MessageKitDto msg in messageChannel.Reader.ReadAllAsync())
             {
                 AISResult? aisRes = ProcessMessageBytes(msg.MessageBuffer, msg.TypeBuffer, msg.BytesCount);
@@ -81,6 +113,7 @@ namespace StreamAIS
                 catch (Exception ex)
                 {
                     Console.WriteLine("Consumer iteration exception: " + ex.Message);
+                    Console.WriteLine(grpcChannel.Target);
                 }
                 finally
                 {

@@ -8,6 +8,7 @@ using System.Threading.Channels;
 using System.Net.Security;
 using System.Security.Cryptography.X509Certificates;
 using System.Diagnostics;
+using ClickHouse.Driver;
 
 namespace StreamAIS
 {
@@ -26,6 +27,16 @@ namespace StreamAIS
                                     .Build();
 
             string aisUrl = confRoot["AIS:ApiUrl"]!;
+
+            bool inContainer = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
+            if (inContainer)
+            {
+                Console.WriteLine("Containerization detected");
+            }
+            string envStringKey = inContainer ? "Docker" : "Main";
+            ClickHouseClient clickHouseClient = new ClickHouseClient(confRoot["Clickhouse:ConnectionString:" + envStringKey]!);
+            await RunSqlFromFile(clickHouseClient, "sql/create_history_table.sql");
+            await RunSqlFromFile(clickHouseClient, "sql/create_sessions_amount_view.sql");
 
             var producerConsumerChannel = Channel.CreateBounded<MessageKitDto>(new BoundedChannelOptions(1000)
             {
@@ -51,7 +62,7 @@ namespace StreamAIS
                 return false;
             };
             await cws.ConnectAsync(new Uri(aisUrl), CancellationToken.None);
-            Console.WriteLine("connected");
+            Console.WriteLine("connected to data source");
 
             byte[] subscriptionBytes = GetSubscriptionMessageBytes(confRoot);
 
@@ -60,8 +71,8 @@ namespace StreamAIS
             WebSocketCloseStatus futureCloseStatus = WebSocketCloseStatus.NormalClosure;
             string? explMessage = null;
 
-            GrpcSenderConsumer grpcConsumer = new GrpcSenderConsumer(confRoot, producerConsumerChannel, maxTypeLength);
-            ClickHouseConsumer chConsumer = new ClickHouseConsumer(confRoot);
+            GrpcSenderConsumer grpcConsumer = new GrpcSenderConsumer(confRoot, envStringKey, producerConsumerChannel, maxTypeLength);
+            ClickHouseConsumer chConsumer = new ClickHouseConsumer(confRoot, clickHouseClient);
 
             grpcConsumer.OnEntryObtained += chConsumer.CollectEntry;
             
@@ -124,6 +135,12 @@ namespace StreamAIS
 
             chConsumer.Dispose();
             grpcConsumer.Dispose();
+        }
+
+        static private async Task RunSqlFromFile(ClickHouseClient client, string filePath)
+        {
+            string query = await File.ReadAllTextAsync(filePath);
+            await client.ExecuteNonQueryAsync(query);
         }
 
         static private byte[] GetSubscriptionMessageBytes(IConfigurationRoot confRoot)

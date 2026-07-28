@@ -3,6 +3,9 @@
     "StreamAIS": {
       "commandName": "Project",
       "commandLineArgs": "AIS_history.txt"
+    },
+    "Container (Dockerfile)": {
+      "commandName": "Docker"
     }
   }
 }

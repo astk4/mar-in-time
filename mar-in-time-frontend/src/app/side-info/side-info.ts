@@ -5,6 +5,7 @@ import { MapToUiService } from '../map-to-ui-service';
 import { App } from '../app';
 import { PointSummary } from '../point-summary/point-summary';
 import { FetcherService } from '../fetcher-service';
+import { ConfigDataService } from '../config-service';
 
 @Component({
   selector: 'side-info',
@@ -19,7 +20,8 @@ export class SideInfo {
   @ViewChild(PointSummary) pointSummary!: PointSummary;
 
   constructor(private mapToUiService: MapToUiService, 
-              private fetcherService: FetcherService) 
+              private fetcherService: FetcherService,
+              private configDataService: ConfigDataService) 
   { 
     this.mapToUiService.details$.subscribe((details) => {
       if (!details) { return; }
@@ -27,7 +29,8 @@ export class SideInfo {
       this.coordDisplay.lat = App.roundTo(details.lat, 6);
       this.coordDisplay.lng = App.roundTo(details.lng, 6);
 
-      const url = `https://localhost:7120/spatial/point?lng=${details.lng}&lat=${details.lat}`;
+      const url = this.configDataService.configData.backendBaseUrl 
+                  + `/spatial/point?lng=${details.lng}&lat=${details.lat}`;
       this.pointSummary.atSea = null
 
       this.fetcherService.getItem(url).subscribe((data) => 

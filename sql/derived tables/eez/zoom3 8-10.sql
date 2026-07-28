@@ -9,8 +9,8 @@
 269, 270, 272 - Norway
 */
 ALTER SEQUENCE eez_chunk_id_seq RESTART WITH 1;
-CREATE MATERIALIZED VIEW eez_v12_zoom_8_10
-AS 
+CREATE TABLE IF NOT EXISTS eez_v12_zoom_8_10
+AS
 	SELECT gid,
 		   nextval('eez_chunk_id_seq') AS chunk_id,
 		   ST_QuantizeCoordinates(

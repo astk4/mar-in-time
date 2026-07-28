@@ -1,0 +1,98 @@
+services:
+  postgres:
+    build:
+      context: .
+      dockerfile: Dockerfile.pg
+    container_name: postgres-with-gis-marintime
+    environment:
+      POSTGRES_USER: some_pg_user #recommending to define yours AND CHANGE IN RESTORE SCRIPT TOO if you will change here
+      POSTGRES_PASSWORD: your_password #recommending to define yours
+      POSTGRES_DB: marintime
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - ./backup/pgdata:/var/lib/postgresql/pgdata
+      - ./data_to_import:/usr/data_to_import #marintime_geodata.dump file should be HERE
+      - ./dump_import.sh:/docker-entrypoint-initdb.d/dump_import.sh
+      - ./pg_health_check.sh:/usr/pg_health_check.sh
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "bash /usr/pg_health_check.sh"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+
+  redis:
+    image: redis:8.4-alpine
+    container_name: redis-marintime
+    volumes:
+      - ./backup/redisdata:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:26.3
+    container_name: clickhouse-marintime
+    environment:
+      CLICKHOUSE_USER: default #or your preferred name
+      CLICKHOUSE_PASSWORD: your_password #recommending to define yours
+    volumes:
+      - mrt_clickhouse_data:/var/lib/clickhouse
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  backend:
+    build:
+      context: ./mar-in-time-back
+      dockerfile: Dockerfile.back
+    container_name: mar-in-time-main
+    ports:
+      - "5254:8080"
+      - "7120:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  stream-microservice:
+    build:
+      context: ./mar-in-time-back
+      dockerfile: Dockerfile.ms
+    container_name: mar-in-time-stream
+    depends_on:
+      backend:
+        condition: service_started
+      clickhouse:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./mar-in-time-frontend
+      dockerfile: Dockerfile
+    container_name: mar-in-time-frontend
+    ports:
+      - "4300:80"
+    depends_on:
+      backend:
+        condition: service_started
+
+volumes:
+  pgdata:
+  redisdata:
+  mrt_clickhouse_data:
+
+
+  
