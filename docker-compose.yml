@@ -83,6 +83,8 @@ services:
       context: ./mar-in-time-frontend
       dockerfile: Dockerfile
     container_name: mar-in-time-frontend
+    volumes:
+      - ./mar-in-time-frontend/ng_container_setup.sh:/docker-entrypoint.d/ng_container_setup.sh
     ports:
       - "4300:80"
     depends_on:
