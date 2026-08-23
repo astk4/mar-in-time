@@ -25,6 +25,12 @@ Geoinformation system for monitoring and visualization of global vessel traffic 
             <a href="#folders-structure">Folders structure</a>
         </li>
         <li>
+            <a href="#how-does-ais-visualization-pipeline-work">AIS visualization pipeline</a>
+        </li>
+        <li>
+            <a href="#architecture-diagrams">Architecture diagrams</a>
+        </li>
+        <li>
             <a href="#future-plans">Future plans</a>
         </li>
         <li>
@@ -63,10 +69,9 @@ Geoinformation system for monitoring and visualization of global vessel traffic 
 git clone https://github.com/astk4/mar-in-time.git
 ```
 2. Obtain an API key from [aisstream.io](https://aisstream.io), the data source:
-    - 2.1. Go to "Get started"
-    - 2.2. Sign up with Github
-    - 2.3. Go to "API Keys"
-    - 2.4. "Create API Key" and copy it
+    - 2.1. Go to "API Keys"
+    - 2.2. If prompted to, sign up/in with Github
+    - 2.3. "Create API Key" and copy it
 
 3. Paste the API key in stream microservice config: 
     - 3.1. In the repository, go to `mar-in-time-back/StreamAIS/secrets.template.json`
@@ -253,6 +258,66 @@ mar-in-time
     └───derived tables # variations of some of geo data
         └───eez # sql scripts to create variations of EEZ with different detailing for different zoom tiers
 ```
+
+</details>
+
+## How does AIS visualization pipeline work
+<details>
+<summary>expand for explanation</summary>
+
+1. In the **StreamAIS** microservice a web socket connection to [aisstream.io](https://aisstream.io/documentation) is opened, via which a stream of AIS messages of all [27 types](https://datadocked.com/ais-message-types) in byte form  is intercepted.
+
+2. Bytes identifying message types are extracted and the messages <u>**not**</u> of either ship position, ship data, or a safety event, are discarded. Each purpose corresponds to 2 of AIS types, so only 6 of 27  types go further into data pipeline.
+
+3. AIS messages in byte form are deserialized with source generated serialization context to increase efficiency by excluding reflection. Resulting objects are then mapped to objects of new types - gRPC contracts. There's only 4 of them and one is not a message type: 
+    - ship position, 
+    - ship data,
+    - safety event,
+    - wrapper for a message with essential common fields (MMSI and repeat indicator)
+
+    AIS message specifications are very similar within the same purpose, so it was possible and effective to logically join types like this. These gRPC contracts are defined in the class library **AisCommunication**.
+
+4. gRPC connection is established between the microservice and the main  backend app **MarInTime** when they both have started. Logical AIS objects described above are sent to main backend one by one as soon as they are deserialized and mapped. 
+    - *gRPC was selected for this stage both because it's [~10 times more efficient than JSON in size and up to 77% faster](https://tech-insider.org/grpc-vs-rest-2026/), and because it's a recommended option for highload inter-service communication.*
+
+5. In the main backend, the stream of AIS objects is received, as soon as possible too, via gRPC in the `AisReceiverService`. 
+    - Safety event messages are just logged to console so far, they will be processed in future updates. 
+    - From ship data messages, the ship's type ID is saved into Redis hash table. 
+    - From ship position messages, latitude, longitude and course (heading) angle, if present, are saved into Redis too. 
+        - If the ship is not moving or speed is so little that it can be considered not moving, the course angle is considered irrelevant and is not saved. 
+    - In both cases the record's key contains ship [MMSI](https://en.wikipedia.org/wiki/Maritime_Mobile_Service_Identity) (unique ID for communication) to identify and gather data later. 
+    - Expiry time of these AIS-related records is set to 10 minutes as a middle ground between not rejecting data too soon and maintaining displayed navigational situation near-real time.
+    - *Redis was selected for this stage here because the data should be saved very fast, doesn't need to be relational and has to persist for a really short time.*
+
+6. Every 2 seconds in the background service `AisBufferingBackgroundService` all data from Redis hash table for ships is gathered into objects of a single type which directly corresponds to ship markers on the map, `ShipCheckpointDto`. All key-value pairs from ship data Redis set are read at once, then values one by one are assigned to either a new or an already existing Dto in a intermediary dictionary, where keys are MMSI numbers. After processing all the pairs, the dictionary values are sent to frontend via SignalR connection with MessagePack protocol under `"ShipCheckpoints"` method.
+    - *SignalR was adopted to receive the processed AIS as soon as possible and establish connection once instead of many requests.*
+    - *MessagePack was selected for this stage because it's [~33% times more efficient than JSON in size and ~2 times faster](https://jsonic.io/guides/json-msgpack).*
+
+7. Batches of checkpoint objects arrive to **frontend** as arrays, where each element is an array of values from one of the objects. Function `onShipPointsArrived` from file `ship_markers.js` sends this big array to the `ship_markers_webworker.js` WebWorker (the only one in the project) to be turned into GeoJSON Feature Collections to be directly drawn on the map.
+    - "Checkpoints" where a ship's course is either unknown or irrelevant (=ship is not moving) get turned into Points, and "checkpoints" for moving ships get turned into arrows rotated to course angle.
+    - Arrows are triangles - GeoJSON Polygons from 3 distinct points - built around the actual ship position using some simple trigonometry (explanatory/concept drawing in [this post of mine](https://bsky.app/profile/a43ti.bsky.social/post/3mjkzonn3622p)) and correction against map projection distortion.
+    - These two kinds of markers get grouped into 2 different GeoJSON Feature Collections.
+    - Marker color is decided by ship type according to [best practices](https://datadocked.com/vessel-types) of maritime GIS systems.
+
+8. After all arrays of values are turned into GeoJSON, the 2 Feature Collections are sent back from the WebWorker to frontend app. Markers are drawn using WebGL by means of leaflet.glify plugin. Previous GeoJSON, if there was any, is removed from the map WebGL contexts, and what's just arrived from the WebWorker is finally drawn.
+    - *WebGL was adopted for this stage to bypass limitations of other ways of drawing objects on a web map (DOM/SVG/Canvas), because the amount of ship markers to render is from 18 to 25K at a time.*
+</details>
+
+## Architecture diagrams
+<details>
+    <summary>expand for architecture</summary>
+
+### Project in general
+<img width="742" height="382" alt="AIS proj in general" src="https://github.com/user-attachments/assets/d4087dc8-5efd-4b7a-a86c-92d59a69dcd0" />
+
+### Main backend
+<img width="691" height="491" alt="AIS main backend" src="https://github.com/user-attachments/assets/c032acc1-3fb3-4935-8762-62f963177850" />
+
+### AIS listening microservice
+<img width="881" height="352" alt="AIS microservice" src="https://github.com/user-attachments/assets/a73058ab-b30c-474a-a0e5-e3c57ea62b10" />
+
+### Frontend
+<img width="902" height="411" alt="AIS frontend" src="https://github.com/user-attachments/assets/029d19eb-ff45-4842-8c20-ef9f1e41a89f" />
 
 </details>
 
