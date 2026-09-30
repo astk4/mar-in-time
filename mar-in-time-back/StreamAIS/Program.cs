@@ -61,6 +61,14 @@ namespace StreamAIS
 
                 return false;
             };
+            cws.Options.DangerousDeflateOptions = new WebSocketDeflateOptions()
+            {
+                ClientMaxWindowBits = 15,
+                ServerMaxWindowBits = 15,
+                ClientContextTakeover = true,
+                ServerContextTakeover = true,
+            };
+
             await cws.ConnectAsync(new Uri(aisUrl), CancellationToken.None);
             Console.WriteLine("connected to data source");
 
@@ -85,7 +93,7 @@ namespace StreamAIS
                 {
                     byte[] prevMsgBuffer = ArrayPool<byte>.Shared.Rent(BufferSize);
                     byte[] crtBuffer = ArrayPool<byte>.Shared.Rent(BufferSize);
-                    byte[] messageTypeBuffer = ArrayPool<byte>.Shared.Rent(maxTypeLength);
+                    //byte[] messageTypeBuffer = ArrayPool<byte>.Shared.Rent(maxTypeLength);
 
                     WebSocketReceiveResult result = await cws.ReceiveAsync(crtBuffer, CancellationToken.None);
 
@@ -93,7 +101,7 @@ namespace StreamAIS
                     {
                         ArrayPool<byte>.Shared.Return(prevMsgBuffer);
                         ArrayPool<byte>.Shared.Return(crtBuffer);
-                        ArrayPool<byte>.Shared.Return(messageTypeBuffer);
+                        //ArrayPool<byte>.Shared.Return(messageTypeBuffer);
                         break;
                     }
 
@@ -108,7 +116,7 @@ namespace StreamAIS
                     Array.Copy(crtBuffer, prevMsgBuffer, result.Count);
                     count = result.Count;
 
-                    await producerConsumerChannel.Writer.WriteAsync(new MessageKitDto(prevMsgBuffer, messageTypeBuffer, count));
+                    await producerConsumerChannel.Writer.WriteAsync(new MessageKitDto(prevMsgBuffer, count));
 
                     ArrayPool<byte>.Shared.Return(crtBuffer);
                 }
