@@ -2,15 +2,20 @@
 using MarInTime.Application.Services;
 using MarInTime.Domain.DTOs;
 using MarInTime.Domain.Entities;
+using MarInTime.Infrastructure.TransportModels;
 using MarInTime.Presentation.ViewModels;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 using StackExchange.Redis;
+using Swashbuckle.AspNetCore.Annotations;
 using System.Diagnostics;
 using System.Text.Json;
 
 namespace MarInTime.Presentation.Controllers
 {
+    /// <summary>
+    /// For getting 2D zones, or at least information about them
+    /// </summary>
     [ApiController]
     [Route("spatial")]
     public class SpatialEntitiesController : ControllerBase
@@ -60,12 +65,20 @@ namespace MarInTime.Presentation.Controllers
             {
                 await redisDb.SetRemoveAsync(sessionKey, chunkLeft);
                 Debug.WriteLine($"chunk {chunkLeft} is deleted");
-                yield return new { chunkId = Convert.ToInt32(chunkLeft), delete = true };
+                yield return new SpatialUpdateDto(Convert.ToInt32(chunkLeft), true);
             }
         }
 
+        /// <summary>
+        /// Gets chunks of EEZ spatial data of given zoom level within a given bounding box.
+        /// </summary>
+        /// <param name="zoom">Current zoom level</param>
+        /// <param name="prevZoom">Zoom level at previous request to this endpoint</param>
+        /// <param name="viewModel">Bounding box</param>
+        /// <response code="200">OK (Click "Schema" above the JSON example to see full schema with 2 possible response types</response>
         [HttpGet]
         [Route("eez")]
+        [ProducesResponseType(typeof(FlexibleSpatialResponse), StatusCodes.Status200OK, "application/x-ndjson")]
         public async Task GetAllEconomicalZonesForMap(int zoom, int? prevZoom, [FromQuery]ViewportBoundsViewModel viewModel)
         {
             bool tierEquals = prevZoom.HasValue && eezService.ZoomTierEquals(zoom, prevZoom.Value);
@@ -107,8 +120,14 @@ namespace MarInTime.Presentation.Controllers
             }
         }
 
+        /// <summary>
+        /// Gets EEZ in the given point, or info about none being there
+        /// </summary>
+        /// <param name="lng">Point longitude</param>
+        /// <param name="lat">Point latitude</param>
         [HttpGet]
         [Route("point")]
+        [SwaggerResponse(StatusCodes.Status200OK, Type = typeof(ZonesAtPointViewModel))]
         public async Task<ZonesAtPointViewModel> GetZonesListAtSeaPoint(double lng, double lat)
         {
             if (await landChecker.IsOnLand(lng, lat))
