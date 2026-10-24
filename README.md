@@ -22,6 +22,9 @@ Geoinformation system for monitoring and visualization of global vessel traffic 
             <a href="#tech-stack">Tech stack</a>
         </li>
         <li>
+            <a href="#screenshots">Screenshots</a>
+        </li>
+        <li>
             <a href="#folders-structure">Folders structure</a>
         </li>
         <li>
@@ -196,6 +199,39 @@ docker compose up
 
 - CI/CD [![Docker Compose](https://img.shields.io/badge/Docker-Compose-061D2F?logo=docker&logoColor=white&labelColor=230db7)](https://docs.docker.com/compose/)
 [![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-333333?style=flat&logo=github-actions)](https://github.com/astk4/mar-in-time/actions)
+
+## Screenshots
+<details>
+    <summary>expand for screenshots</summary>
+
+### Global zoom, side panel collapsed
+<img width="1918" height="907" alt="world view" src="https://github.com/user-attachments/assets/442a2acf-b6ea-4e80-ba35-9b2ae19a1280" />
+
+### Regional zoom example, side panel opened
+<img width="1918" height="906" alt="regional" src="https://github.com/user-attachments/assets/d092248c-e7d0-4707-be15-c705f151ccd1" />
+
+### Examples of points of different hemispheres, EEZ types or lack thereof, zoom levels, coastline shapes...
+<img width="1918" height="906" alt="finnish EEZ" src="https://github.com/user-attachments/assets/dcbe5c1d-c44c-42b1-a3de-d3a5bf869198" />
+
+<img width="1918" height="907" alt="egypt libya overlap" src="https://github.com/user-attachments/assets/bf6c3618-d3c9-49c1-9b77-6306235c345e" />
+
+<img width="1917" height="907" alt="brazilian territory" src="https://github.com/user-attachments/assets/4d57fd85-668b-4e9d-bb43-047c8e055d52" />
+
+<img width="1918" height="907" alt="neutral waters" src="https://github.com/user-attachments/assets/03012988-4d29-4a40-9483-96eed233b2f8" />
+
+<img width="1918" height="906" alt="land point" src="https://github.com/user-attachments/assets/f9d45bd9-6380-4843-b309-d87f1ddbc82b" />
+
+<img width="1917" height="906" alt="joint regime" src="https://github.com/user-attachments/assets/99f86ceb-ff1a-4e62-a7ee-41dbf745f1c5" />
+
+### Examples of port info popups
+<img width="1901" height="888" alt="port example singapore" src="https://github.com/user-attachments/assets/821044d8-6943-4063-b89a-50cff33f2182" />
+
+<img width="1918" height="902" alt="port example poland" src="https://github.com/user-attachments/assets/6ca09e0e-3042-4d74-870b-92d15f405fdf" />
+
+### When a EEZ chunk haven't loaded yet, but that EEZ is detected correctly
+<img width="1302" height="912" alt="EEZ point detection GEOJSON DELAY" src="https://github.com/user-attachments/assets/ce88e3aa-1da4-478b-b9d9-5979301c9f9e" />
+
+</details>
 
 ## Folders structure
 <details>
