@@ -13,25 +13,23 @@ using System.Threading.Channels;
 
 namespace StreamAIS
 {
-    internal class GrpcSenderConsumer : AbstractConsumer, IDisposable
+    internal class GrpcSenderConsumer : AbstractConsumer
     {
-        private const string positionReportStr = "PositionReport",
-                             shipDataStr = "ShipStaticData",
-                             staticDataStr = "StaticDataReport",
-                             safeBroadcastStr = "SafetyBroadcastMessage",
-                             safeAddrStr = "AddressedSafetyMessage";
+        private static readonly byte[]
+            positionReportStr = Encoding.UTF8.GetBytes("PositionReport"),
+            shipDataStr = Encoding.UTF8.GetBytes("ShipStaticData"),
+            staticDataStr = Encoding.UTF8.GetBytes("StaticDataReport"),
+            safeBroadcastStr = Encoding.UTF8.GetBytes("SafetyBroadcastMessage"),
+            safeAddrStr = Encoding.UTF8.GetBytes("AddressedSafetyMessage"),
+            subscriptionConfirm = Encoding.UTF8.GetBytes("SubscriptionConfirmation");
 
-        private static readonly int offsetBeforeMsgType = "{\"Message\":{\"".Length;
-        private static readonly byte msgTypeEndByte = Encoding.UTF8.GetBytes("\"")[0];
+        private static readonly byte[] msgTypePropertyBytes = Encoding.UTF8.GetBytes("MessageType");
 
         private readonly GrpcChannel grpcChannel;
         private readonly AsyncClientStreamingCall<AISResult, Empty> grpcStreamer;
-        
+
         private readonly Channel<MessageKitDto> messageChannel;
-        
-        private readonly int maxTypeLength;
-        private string currentMsgType = string.Empty;
-        
+
         public Action<AISResult>? OnEntryObtained;
         private bool disposedValue;
 
@@ -74,7 +72,6 @@ namespace StreamAIS
             this.grpcStreamer = senderClient.SendMessages();
 
             this.messageChannel = messageChannel;
-            this.maxTypeLength = maxTypeLength;
         }
 
         public override async Task ConsumingLoop()
@@ -88,7 +85,7 @@ namespace StreamAIS
 
             await foreach (MessageKitDto msg in messageChannel.Reader.ReadAllAsync())
             {
-                AISResult? aisRes = ProcessMessageBytes(msg.MessageBuffer, msg.TypeBuffer, msg.BytesCount);
+                AISResult? aisRes = ProcessMessageBytes(msg.MessageBuffer, msg.BytesCount);
 
                 if (aisRes == null) { continue; }
 
@@ -120,78 +117,90 @@ namespace StreamAIS
                     OnEntryObtained?.Invoke(aisRes);
 
                     ArrayPool<byte>.Shared.Return(msg.MessageBuffer, true);
-                    ArrayPool<byte>.Shared.Return(msg.TypeBuffer, true);
                 }
             }
         }
 
-        private AISResult? ProcessMessageBytes(byte[] message, byte[] bufferForType, int bytesCount)
+        private AISResult? ProcessMessageBytes(byte[] message, int bytesCount)
         {
-            int crtMsgTypeLength = 0;
+            ReadOnlySpan<byte> currentMsgTypeBytes = GetMessageTypeName(message);
 
-            for (int i = 0; i <= maxTypeLength; i++)
+            if (currentMsgTypeBytes.SequenceEqual(shipDataStr))
             {
-                if (message[i + offsetBeforeMsgType] == msgTypeEndByte)
-                {
-                    crtMsgTypeLength = i;
-                    break;
-                }
-            }
-
-            Array.Copy(message, offsetBeforeMsgType, bufferForType, 0, crtMsgTypeLength);
-            currentMsgType = Encoding.UTF8.GetString(bufferForType).TrimEnd('\0');
-
-            switch (currentMsgType)
-            {
-                case shipDataStr:
-                    AisMessageWrapper<ShipDataMessage> shipMessageFromJson
+                AisMessageWrapper<ShipDataMessage> shipMessageFromJson
                         = JsonSerializer.Deserialize(message.AsSpan(0, bytesCount),
                                                      AisJsonSerializationContext.Default.AisMessageWrapperShipDataMessage)!;
 
-                    AISResult shipResult = new AISResult() { ShipData = shipMessageFromJson.Message.ToProto() };
-                    shipMessageFromJson.Message.ShipStaticData.MapOntoProto(shipResult);
-                    return shipResult;
-                //break;
-                case staticDataStr:
-                    AisMessageWrapper<StaticDataMessage> staticMessageFromJson
+                AISResult shipResult = new AISResult() { ShipData = shipMessageFromJson.Message.ToProto() };
+                shipMessageFromJson.Message.ShipStaticData.MapOntoProto(shipResult);
+                return shipResult;
+            }
+
+            if (currentMsgTypeBytes.SequenceEqual(staticDataStr))
+            {
+                AisMessageWrapper<StaticDataMessage> staticMessageFromJson
                         = JsonSerializer.Deserialize(message.AsSpan(0, bytesCount),
                                                      AisJsonSerializationContext.Default.AisMessageWrapperStaticDataMessage)!;
 
-                    AISResult staticResult = new AISResult() { ShipData = staticMessageFromJson.Message.ToProto() };
-                    staticMessageFromJson.Message.StaticDataReport.MapOntoProto(staticResult);
-                    return staticResult;
-                //break;
-                case safeBroadcastStr or safeAddrStr:
-                    AisMessageWrapper<SafetyRelatedMessage> safetyMessageFromJson
+                AISResult staticResult = new AISResult() { ShipData = staticMessageFromJson.Message.ToProto() };
+                staticMessageFromJson.Message.StaticDataReport.MapOntoProto(staticResult);
+                return staticResult;
+            }
+
+            if (currentMsgTypeBytes.SequenceEqual(safeBroadcastStr) || currentMsgTypeBytes.SequenceEqual(safeAddrStr))
+            {
+                AisMessageWrapper<SafetyRelatedMessage> safetyMessageFromJson
                         = JsonSerializer.Deserialize(message.AsSpan(0, bytesCount),
                                  AisJsonSerializationContext.Default.AisMessageWrapperSafetyRelatedMessage)!;
 
-                    AISResult safetyResult = new AISResult() { Safety = safetyMessageFromJson.Message.ToProto() };
-                    safetyMessageFromJson.Message.ActualSafetyMessage.MapOntoProto(safetyResult);
-                    return safetyResult;
-                //break;
-                default:
-                    if (currentMsgType.Substring(currentMsgType.Length - positionReportStr.Length, positionReportStr.Length) == positionReportStr)
-                    {
-                        AisMessageWrapper<PositionMessage> positionFromJson
+                AISResult safetyResult = new AISResult() { Safety = safetyMessageFromJson.Message.ToProto() };
+                safetyMessageFromJson.Message.ActualSafetyMessage.MapOntoProto(safetyResult);
+                return safetyResult;
+            }
+
+            if (currentMsgTypeBytes.EndsWith(positionReportStr)) // PositionReport, StandardClassBPositionReport, ExtendedClassBPositionReport
+            {
+                AisMessageWrapper<PositionMessage> positionFromJson
                             = JsonSerializer.Deserialize(message.AsSpan(0, bytesCount),
                                                          AisJsonSerializationContext.Default.AisMessageWrapperPositionMessage)!;
 
-                        AISResult positionResult = new AISResult() { Position = positionFromJson.Message.ToProto() };
+                AISResult positionResult = new AISResult() { Position = positionFromJson.Message.ToProto() };
 
-                        if (positionResult.Position.ClassB)
-                        {
-                            positionFromJson.Message.StandardClassBPositionReport!.MapOntoProto(positionResult);
-                        }
-                        else
-                        {
-                            positionFromJson.Message.PositionReport!.MapOntoProto(positionResult);
-                        }
-                        return positionResult;
-                    }
-                    break;
+                if (positionResult.Position.ClassB)
+                {
+                    positionFromJson.Message.StandardClassBPositionReport!.MapOntoProto(positionResult);
+                }
+                else
+                {
+                    positionFromJson.Message.PositionReport!.MapOntoProto(positionResult);
+                }
+                return positionResult;
             }
+
+            if (currentMsgTypeBytes.SequenceEqual(subscriptionConfirm))
+            {
+                AisMessageWrapper<SubscriptionConfirmMessage> confirmFromJson
+                    = JsonSerializer.Deserialize(message.AsSpan(0, bytesCount),
+                                                 AisJsonSerializationContext.Default.AisMessageWrapperSubscriptionConfirmMessage)!;
+                Console.WriteLine($"Compression negotiated: {confirmFromJson.Message.CompressionEnabled}");
+            }
+
             return null;
+        }
+
+        private static ReadOnlySpan<byte> GetMessageTypeName(byte[] message)
+        {
+            Utf8JsonReader reader = new Utf8JsonReader(message);
+            while (reader.Read())
+            {
+                if (reader.TokenType == JsonTokenType.PropertyName
+                    && reader.ValueSpan.SequenceEqual(msgTypePropertyBytes))
+                {
+                    reader.Read(); // read next token which is actual message type name
+                    break;
+                }
+            }
+            return reader.ValueSpan;
         }
 
         protected virtual void Dispose(bool disposing)

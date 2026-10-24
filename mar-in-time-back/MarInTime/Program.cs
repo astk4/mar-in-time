@@ -14,6 +14,9 @@ using Microsoft.Extensions.Logging.Console;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.EntityFrameworkCore.Storage;
+using System.Reflection;
+using MarInTime.Infrastructure.TransportModels;
+using MarInTime.Presentation.SwaggerFilters;
 
 namespace MarInTime
 {
@@ -102,7 +105,15 @@ namespace MarInTime
             }
 
             builder.Services.AddEndpointsApiExplorer();
-            builder.Services.AddSwaggerGen();
+            
+            string xmlFileName = Assembly.GetExecutingAssembly().GetName().Name + ".xml";
+            string pathToGeneratedXml = Path.Combine(AppContext.BaseDirectory, xmlFileName);
+            builder.Services.AddSwaggerGen(
+                options => {
+                    options.IncludeXmlComments(pathToGeneratedXml, true);
+                    options.SchemaFilter<FlexibleSpatialResponseFilter>();
+                }
+            );
 
             var app = builder.Build();
 

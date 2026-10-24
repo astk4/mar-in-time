@@ -8,6 +8,7 @@ namespace StreamAIS.Models
     [JsonSerializable(typeof(AisMessageWrapper<ShipDataMessage>))]
     [JsonSerializable(typeof(AisMessageWrapper<StaticDataMessage>))]
     [JsonSerializable(typeof(AisMessageWrapper<SafetyRelatedMessage>))]
+    [JsonSerializable(typeof(AisMessageWrapper<SubscriptionConfirmMessage>))]
     public partial class AisJsonSerializationContext : JsonSerializerContext
     {
     }
